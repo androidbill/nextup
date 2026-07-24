@@ -6,7 +6,7 @@ import {
 import { firebaseConfig } from './firebase-config.js';
 import { DECKS } from './decks.js';
 
-export const APP_VERSION = '2026.07.24.01';
+export const APP_VERSION = '2026.07.24.02';
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -239,8 +239,8 @@ async function startGame() {
   if (!isHost()) return;
   const ids = Object.keys(room.players || {});
   if (ids.length < 2) return toast('You need at least 2 players!');
-  const deck = $('deck-select').value;
-  const roundSeconds = parseInt($('time-select').value, 10);
+  const deck = room.settings?.deck || 'mix';
+  const roundSeconds = room.settings?.roundSeconds || 60;
   const { guesserId, scorerId, queue } = { ...nextRoundAssignments() };
   const words = buildRoundWords(deck, []);
   try {
@@ -420,6 +420,8 @@ function renderLobby() {
   if (isHost()) {
     show($('lobby-settings')); hide($('lobby-settings-view'));
     show($('btn-start')); hide($('lobby-wait-msg'));
+    $('deck-select').value = room.settings?.deck || 'mix';
+    $('time-select').value = String(room.settings?.roundSeconds || 60);
     $('btn-start').disabled = ids.length < 2;
     $('btn-start').textContent = ids.length < 2 ? '🚀 Start Game (need 2+ players)' : '🚀 Start Game';
   } else {
@@ -528,6 +530,26 @@ $('btn-wrong').addEventListener('click', () => scoreWord(false));
 $('btn-next-round').addEventListener('click', nextRound);
 $('btn-end-game').addEventListener('click', endGame);
 $('btn-play-again').addEventListener('click', playAgain);
+
+// Host settings changes sync live to everyone in the lobby
+$('deck-select').addEventListener('change', () => {
+  if (isHost() && room?.state === 'lobby') {
+    updateDoc(roomRef, { 'settings.deck': $('deck-select').value }).catch(() => {});
+  }
+});
+$('time-select').addEventListener('change', () => {
+  if (isHost() && room?.state === 'lobby') {
+    updateDoc(roomRef, { 'settings.roundSeconds': parseInt($('time-select').value, 10) }).catch(() => {});
+  }
+});
+
+// iOS/Android only allow sound after a user gesture — unlock audio on first tap
+document.addEventListener('pointerdown', () => {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch { /* fine */ }
+});
 
 // Deck dropdown
 $('deck-select').innerHTML = Object.entries(DECKS)
