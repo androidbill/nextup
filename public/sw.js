@@ -8,6 +8,7 @@ const CORE = [
   'styles.css',
   'app.js',
   'decks.js',
+  'version.js',
   'firebase-config.js',
   'manifest.webmanifest',
   'icons/icon-192.png',

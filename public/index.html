@@ -15,6 +15,33 @@
 </head>
 <body>
 
+  <!-- ============ UPDATE BANNER ============ -->
+  <div id="update-banner" class="update-banner hidden">
+    <span>🆕 A new version is available!</span>
+    <button id="btn-update">Refresh</button>
+  </div>
+
+  <!-- ============ TOP-RIGHT MENU ============ -->
+  <div id="menu-wrap" class="menu-wrap">
+    <button id="btn-menu" aria-label="Menu">⋮</button>
+    <div id="menu-dropdown" class="menu-dropdown hidden">
+      <button id="menu-refresh">🔄 Refresh</button>
+      <button id="menu-share">📤 Share</button>
+      <button id="menu-about">ℹ️ About</button>
+    </div>
+  </div>
+
+  <!-- ============ ABOUT ============ -->
+  <div id="about-modal" class="modal hidden">
+    <div class="modal-card about-card">
+      <img src="icons/icon-192.png" alt="Next Up icon" class="about-icon">
+      <h2>Next Up</h2>
+      <p class="about-version" id="about-version"></p>
+      <p class="about-credit">Created by Bill Parsons</p>
+      <button id="btn-about-close" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+
   <!-- ============ HOME ============ -->
   <section id="screen-home" class="screen">
     <div class="logo-wrap">

@@ -19,5 +19,6 @@ advance to the next word. 60-second rounds, per-player scores, everyone gets a t
 firebase deploy
 ```
 
-**Important:** bump `APP_VERSION` in `public/app.js` (format `YYYY.MM.DD.NN`) on every
-change, or installed PWAs will keep serving the old cached version.
+**Important:** bump `APP_VERSION` in `public/version.js` (format `YYYY.MM.DD.NN`) on every
+change, or installed PWAs will keep serving the old cached version. The landing page also
+fetches `version.js` fresh on load and shows a "new version available" refresh prompt.

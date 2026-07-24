@@ -5,8 +5,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { DECKS } from './decks.js';
-
-export const APP_VERSION = '2026.07.24.02';
+import { APP_VERSION } from './version.js';
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -550,6 +549,65 @@ document.addEventListener('pointerdown', () => {
     if (audioCtx.state === 'suspended') audioCtx.resume();
   } catch { /* fine */ }
 });
+
+// ---------------------------------------------------------------- menu / about / share / refresh
+async function fullRefresh() {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch { /* best effort — reload anyway */ }
+  location.reload();
+}
+
+async function shareApp() {
+  const url = location.origin + location.pathname;
+  const inRoom = room && roomCode;
+  const data = {
+    title: 'Next Up',
+    text: inRoom
+      ? `Join my Next Up room! Code: ${roomCode}`
+      : 'Play Next Up with me — the shout-it-out party guessing game!',
+    url,
+  };
+  try {
+    if (navigator.share) await navigator.share(data);
+    else { await navigator.clipboard.writeText(`${data.text} ${url}`); toast('Link copied!'); }
+  } catch { /* user cancelled the share sheet — fine */ }
+}
+
+$('btn-menu').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('menu-dropdown').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!$('menu-wrap').contains(e.target)) hide($('menu-dropdown'));
+});
+$('menu-refresh').addEventListener('click', fullRefresh);
+$('menu-share').addEventListener('click', () => { hide($('menu-dropdown')); shareApp(); });
+$('menu-about').addEventListener('click', () => {
+  hide($('menu-dropdown'));
+  $('about-version').textContent = `Version ${APP_VERSION}`;
+  show($('about-modal'));
+});
+$('btn-about-close').addEventListener('click', () => hide($('about-modal')));
+$('btn-update').addEventListener('click', fullRefresh);
+
+// On open: fetch version.js fresh and prompt to refresh if a newer version is deployed
+async function checkForUpdate() {
+  try {
+    const res = await fetch(`version.js?nocache=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const m = (await res.text()).match(/APP_VERSION\s*=\s*'([^']+)'/);
+    if (m && m[1] !== APP_VERSION) show($('update-banner'));
+  } catch { /* offline — skip */ }
+}
+checkForUpdate();
 
 // Deck dropdown
 $('deck-select').innerHTML = Object.entries(DECKS)
