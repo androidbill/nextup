@@ -1,0 +1,123 @@
+// Word decks for Next Up
+export const DECKS = {
+  mix: { label: '🎲 Mix It Up (everything)', words: [] }, // filled below
+  celebs: {
+    label: '⭐ Celebrities',
+    words: [
+      'Taylor Swift', 'Dwayne Johnson', 'Oprah Winfrey', 'Tom Hanks', 'Beyoncé',
+      'Michael Jordan', 'Elvis Presley', 'Dolly Parton', 'Will Smith', 'Adele',
+      'Leonardo DiCaprio', 'Serena Williams', 'Elon Musk', 'Lady Gaga', 'Keanu Reeves',
+      'Jennifer Lopez', 'Snoop Dogg', 'Betty White', 'Arnold Schwarzenegger', 'Rihanna',
+      'Morgan Freeman', 'Britney Spears', 'Mr. Rogers', 'Gordon Ramsay', 'Ellen DeGeneres',
+      'Abraham Lincoln', 'Albert Einstein', 'Michael Jackson', 'Marilyn Monroe', 'Muhammad Ali',
+      'Bob Ross', 'Steve Irwin', 'Shaquille O\'Neal', 'Jim Carrey', 'Whitney Houston',
+      'Johnny Depp', 'Tiger Woods', 'Willie Nelson', 'Dr. Phil', 'Danny DeVito',
+      'Robin Williams', 'Prince', 'Cher', 'Mark Zuckerberg', 'Tom Cruise',
+      'Eminem', 'Julia Roberts', 'Samuel L. Jackson', 'Reba McEntire', 'George Washington',
+      'Babe Ruth', 'Walt Disney', 'Stevie Wonder', 'John Wayne', 'Lucille Ball',
+      'Bruce Lee', 'Freddie Mercury', 'Garth Brooks', 'Meryl Streep', 'Kevin Hart',
+    ],
+  },
+  movies: {
+    label: '🎬 Movies & TV',
+    words: [
+      'Titanic', 'Jaws', 'Star Wars', 'The Wizard of Oz', 'Jurassic Park',
+      'Forrest Gump', 'The Lion King', 'Frozen', 'Rocky', 'Ghostbusters',
+      'Back to the Future', 'E.T.', 'Home Alone', 'The Godfather', 'Shrek',
+      'Finding Nemo', 'Toy Story', 'Harry Potter', 'Batman', 'Spider-Man',
+      'Friends', 'The Office', 'SpongeBob SquarePants', 'Grease', 'Top Gun',
+      'Indiana Jones', 'The Terminator', 'Pirates of the Caribbean', 'Wheel of Fortune', 'Jeopardy',
+      'Sesame Street', 'The Simpsons', 'Survivor', 'Game of Thrones', 'Stranger Things',
+      'Seinfeld', 'I Love Lucy', 'Scooby-Doo', 'The Brady Bunch', 'Cheers',
+      'Dirty Dancing', 'The Sound of Music', 'King Kong', 'Godzilla', 'Rambo',
+      'Mary Poppins', 'Cinderella', 'Aladdin', 'The Little Mermaid', 'Napoleon Dynamite',
+      'The Hunger Games', 'Avatar', 'The Avengers', 'Karate Kid', 'Field of Dreams',
+      'Elf', 'A Christmas Story', 'Caddyshack', 'Dumb and Dumber', 'The Princess Bride',
+    ],
+  },
+  animals: {
+    label: '🐘 Animals',
+    words: [
+      'Elephant', 'Giraffe', 'Penguin', 'Kangaroo', 'Octopus',
+      'Flamingo', 'Sloth', 'Porcupine', 'Dolphin', 'Skunk',
+      'Peacock', 'Hippopotamus', 'Chameleon', 'Platypus', 'Armadillo',
+      'Hummingbird', 'Jellyfish', 'Raccoon', 'Bald Eagle', 'Grizzly Bear',
+      'Great White Shark', 'Anteater', 'Meerkat', 'Walrus', 'Ostrich',
+      'Tarantula', 'Firefly', 'Seahorse', 'Koala', 'Cheetah',
+      'Rattlesnake', 'Woodpecker', 'Lobster', 'Hedgehog', 'Panda',
+      'Bat', 'Beaver', 'Moose', 'Goldfish', 'Rooster',
+      'Praying Mantis', 'Llama', 'Toucan', 'Squirrel', 'Buffalo',
+      'Owl', 'Crocodile', 'Butterfly', 'Turkey', 'Ferret',
+      'Stingray', 'Gorilla', 'Zebra', 'Camel', 'Otter',
+      'Vulture', 'Bumblebee', 'Catfish', 'Mountain Lion', 'Donkey',
+    ],
+  },
+  food: {
+    label: '🌮 Food & Drink',
+    words: [
+      'Pizza', 'Tacos', 'Spaghetti', 'Pancakes', 'Popcorn',
+      'Corn Dog', 'Nachos', 'Grilled Cheese', 'Mac and Cheese', 'Sushi',
+      'Root Beer Float', 'Cotton Candy', 'Funnel Cake', 'Beef Jerky', 'Deviled Eggs',
+      'Banana Split', 'Chicken Wings', 'Guacamole', 'Meatloaf', 'Cornbread',
+      'S\'mores', 'Peanut Butter and Jelly', 'Biscuits and Gravy', 'Hot Sauce', 'Apple Pie',
+      'Milkshake', 'Onion Rings', 'Cheeseburger', 'Burrito', 'Lasagna',
+      'Ramen', 'Pretzel', 'Donut', 'Waffles', 'French Toast',
+      'Clam Chowder', 'Sweet Tea', 'Lemonade', 'Ice Cream Sandwich', 'Pickles',
+      'Mashed Potatoes', 'Fried Chicken', 'Pumpkin Pie', 'Jello', 'Oatmeal',
+      'Caesar Salad', 'Garlic Bread', 'Cinnamon Roll', 'Chili', 'Pot Roast',
+      'Quesadilla', 'Egg Rolls', 'Fortune Cookie', 'Snow Cone', 'Trail Mix',
+      'Bacon', 'Avocado Toast', 'Gumbo', 'Tater Tots', 'Fruitcake',
+    ],
+  },
+  actions: {
+    label: '🤸 Act It Out',
+    words: [
+      'Brushing your teeth', 'Riding a horse', 'Milking a cow', 'Shoveling snow', 'Juggling',
+      'Bowling', 'Fishing', 'Changing a diaper', 'Mowing the lawn', 'Karate chop',
+      'Slow dancing', 'Riding a rollercoaster', 'Making a snow angel', 'Flipping pancakes', 'Walking a dog',
+      'Playing air guitar', 'Doing the moonwalk', 'Shooting a free throw', 'Painting a fence', 'Blowing out candles',
+      'Building a sandcastle', 'Ice skating', 'Rock climbing', 'Playing the drums', 'Taking a selfie',
+      'Riding a mechanical bull', 'Churning butter', 'Casting a fishing line', 'Doing yoga', 'Jumping rope',
+      'Swatting a fly', 'Waterskiing', 'Directing traffic', 'Marching in a band', 'Golfing',
+      'Arm wrestling', 'Washing dishes', 'Folding laundry', 'Vacuuming', 'Curling (the sport)',
+      'Bird watching', 'Playing hopscotch', 'Square dancing', 'Doing a cartwheel', 'Snowboarding',
+      'Rowing a boat', 'Throwing a frisbee', 'Whittling', 'Baking cookies', 'Playing horseshoes',
+    ],
+  },
+  things: {
+    label: '🧰 Everyday Things',
+    words: [
+      'Toothbrush', 'Umbrella', 'Lawnmower', 'Microwave', 'Flashlight',
+      'Duct Tape', 'Rocking Chair', 'Garden Hose', 'Fire Extinguisher', 'Doorbell',
+      'Windshield Wipers', 'Blender', 'Clothes Hanger', 'Stapler', 'Measuring Tape',
+      'Bug Spray', 'Coffee Maker', 'Bird Feeder', 'Recliner', 'Weed Whacker',
+      'Ceiling Fan', 'Ironing Board', 'Bubble Wrap', 'Pool Noodle', 'Lava Lamp',
+      'Pogo Stick', 'Wheelbarrow', 'Binoculars', 'Kazoo', 'Snow Globe',
+      'Plunger', 'Piggy Bank', 'Fly Swatter', 'Extension Cord', 'Alarm Clock',
+      'Bath Towel', 'Grill', 'Mailbox', 'Sprinkler', 'Toolbox',
+      'Hammock', 'Porch Swing', 'Welcome Mat', 'Junk Drawer', 'Remote Control',
+      'Air Fryer', 'Curling Iron', 'Nail Clippers', 'Sunglasses', 'Backpack',
+      'Tackle Box', 'Jumper Cables', 'Yoga Mat', 'Bird Bath', 'Screen Door',
+    ],
+  },
+  sports: {
+    label: '🏈 Sports & Games',
+    words: [
+      'Touchdown', 'Home Run', 'Slam Dunk', 'Hole in One', 'Strikeout',
+      'Super Bowl', 'World Series', 'The Olympics', 'March Madness', 'NASCAR',
+      'Tailgating', 'Fantasy Football', 'Bowling Alley', 'Batting Cage', 'Putt-Putt Golf',
+      'Dodgeball', 'Tug of War', 'Musical Chairs', 'Hide and Seek', 'Cornhole',
+      'Ping Pong', 'Foosball', 'Darts', 'Poker', 'Bingo',
+      'Hopscotch', 'Monopoly', 'Checkers', 'Twister', 'Charades',
+      'Volleyball', 'Cheerleader', 'Referee', 'Marathon', 'Relay Race',
+      'Wrestling', 'Figure Skating', 'Skateboarding', 'Bull Riding', 'Demolition Derby',
+      'Hockey Puck', 'Free Throw', 'Field Goal', 'Grand Slam', 'Penalty Box',
+      'Umpire', 'Little League', 'Pit Crew', 'Scoreboard', 'Halftime Show',
+    ],
+  },
+};
+
+// Build the "mix" deck from all the others
+DECKS.mix.words = Object.entries(DECKS)
+  .filter(([key]) => key !== 'mix')
+  .flatMap(([, deck]) => deck.words);

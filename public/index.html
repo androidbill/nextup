@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1033">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Next Up</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ HOME ============ -->
+  <section id="screen-home" class="screen">
+    <div class="logo-wrap">
+      <div class="logo-mark">⏭</div>
+      <h1 class="logo">NEXT&nbsp;UP</h1>
+      <p class="tagline">The shout-it-out party game</p>
+    </div>
+
+    <div class="card">
+      <label class="field-label" for="name-input">Your name</label>
+      <input id="name-input" type="text" maxlength="14" placeholder="e.g. Bill" autocomplete="off">
+
+      <button id="btn-create" class="btn btn-primary">🎉 Create a Room</button>
+
+      <div class="divider"><span>or join a room</span></div>
+
+      <div class="join-row">
+        <input id="code-input" type="text" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
+        <button id="btn-join" class="btn btn-secondary">Join</button>
+      </div>
+    </div>
+
+    <button id="btn-howto" class="link-btn">How to play</button>
+    <div class="version" id="version-label"></div>
+  </section>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div id="howto-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>How to Play 🎤</h2>
+      <ol class="howto-list">
+        <li>Everyone joins the room on their own phone (2+ players).</li>
+        <li>Each round, the game randomly picks a <b>Guesser</b> and a <b>Scorekeeper</b>.</li>
+        <li>The Guesser puts their phone <b>face down</b> — everyone else sees the secret word.</li>
+        <li>Shout clues! (Don't say the word or spell it!)</li>
+        <li>When the Guesser gets it (or gives up), the Scorekeeper taps <b>✓ Got it</b> or <b>✗ Skip</b> and the next word appears.</li>
+        <li>Rounds last 60 seconds. Most correct guesses wins!</li>
+      </ol>
+      <button id="btn-howto-close" class="btn btn-primary">Got it!</button>
+    </div>
+  </div>
+
+  <!-- ============ LOBBY ============ -->
+  <section id="screen-lobby" class="screen hidden">
+    <p class="room-label">ROOM CODE</p>
+    <div class="room-code" id="lobby-code">----</div>
+    <p class="hint">Friends join at <b id="lobby-url"></b></p>
+
+    <div class="card">
+      <h3 class="card-title">Players <span id="lobby-count"></span></h3>
+      <ul id="lobby-players" class="player-list"></ul>
+    </div>
+
+    <div class="card" id="lobby-settings">
+      <h3 class="card-title">Game Settings</h3>
+      <label class="field-label" for="deck-select">Category</label>
+      <select id="deck-select"></select>
+      <label class="field-label" for="time-select">Round length</label>
+      <select id="time-select">
+        <option value="45">45 seconds</option>
+        <option value="60" selected>60 seconds</option>
+        <option value="90">90 seconds</option>
+      </select>
+    </div>
+    <div class="card hidden" id="lobby-settings-view">
+      <p class="settings-summary" id="settings-summary"></p>
+    </div>
+
+    <button id="btn-start" class="btn btn-primary hidden">🚀 Start Game</button>
+    <p id="lobby-wait-msg" class="hint hidden">Waiting for the host to start…</p>
+    <button id="btn-leave-lobby" class="link-btn">Leave room</button>
+  </section>
+
+  <!-- ============ ROUND INTRO ============ -->
+  <section id="screen-intro" class="screen hidden">
+    <p class="round-label" id="intro-round">ROUND 1</p>
+    <div class="card intro-card">
+      <div class="intro-role">
+        <span class="intro-emoji">🎤</span>
+        <div>
+          <p class="intro-who" id="intro-guesser">?</p>
+          <p class="intro-what">is guessing!</p>
+        </div>
+      </div>
+      <div class="intro-role">
+        <span class="intro-emoji">📋</span>
+        <div>
+          <p class="intro-who" id="intro-scorer">?</p>
+          <p class="intro-what">keeps score</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="intro-guesser-panel" class="hidden">
+      <p class="big-instruction">You're up! Tap the button, then put your phone <b>FACE DOWN</b> and listen for clues!</p>
+      <button id="btn-ready" class="btn btn-primary btn-huge">👇 I'm Ready — Phone Down!</button>
+    </div>
+    <p id="intro-wait-msg" class="hint hidden">Waiting for the guesser to put their phone down…</p>
+  </section>
+
+  <!-- ============ PLAYING ============ -->
+  <section id="screen-play" class="screen hidden">
+    <!-- countdown overlay -->
+    <div id="countdown-overlay" class="countdown-overlay hidden"><span id="countdown-num">3</span></div>
+
+    <!-- guesser's face-down view -->
+    <div id="play-guesser" class="facedown hidden">
+      <div class="facedown-inner">
+        <span class="facedown-emoji">🙈</span>
+        <p>PHONE DOWN!</p>
+        <p class="facedown-sub">Listen and guess out loud!</p>
+      </div>
+    </div>
+
+    <!-- everyone else's view -->
+    <div id="play-clue" class="hidden">
+      <div class="timebar-track"><div id="timebar" class="timebar"></div></div>
+      <div class="play-top">
+        <span id="play-timer" class="play-timer">60</span>
+        <span id="play-tally" class="play-tally"></span>
+      </div>
+      <div class="word-card">
+        <p class="word-deck" id="word-deck"></p>
+        <p class="word" id="word-text">…</p>
+      </div>
+      <p class="hint" id="clue-hint">Shout clues — don't say the word!</p>
+
+      <div id="scorer-buttons" class="scorer-buttons hidden">
+        <button id="btn-wrong" class="btn-score btn-wrong">✗<span>SKIP</span></button>
+        <button id="btn-correct" class="btn-score btn-correct">✓<span>GOT IT</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ROUND SUMMARY ============ -->
+  <section id="screen-summary" class="screen hidden">
+    <p class="round-label" id="summary-round">ROUND OVER</p>
+    <div class="summary-score-line" id="summary-headline"></div>
+
+    <div class="card">
+      <h3 class="card-title">This round's words</h3>
+      <ul id="summary-words" class="word-results"></ul>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">Scoreboard</h3>
+      <ul id="summary-scores" class="score-list"></ul>
+    </div>
+
+    <div id="summary-scorer-panel" class="hidden">
+      <button id="btn-next-round" class="btn btn-primary">⏭ Next Round</button>
+      <button id="btn-end-game" class="btn btn-danger-outline">End Game</button>
+    </div>
+    <p id="summary-wait-msg" class="hint hidden"></p>
+  </section>
+
+  <!-- ============ GAME OVER ============ -->
+  <section id="screen-gameover" class="screen hidden">
+    <h1 class="gameover-title">🏆 Final Scores</h1>
+    <div class="card">
+      <ul id="final-scores" class="score-list final"></ul>
+    </div>
+    <button id="btn-play-again" class="btn btn-primary hidden">🔁 Play Again</button>
+    <p id="gameover-wait-msg" class="hint hidden">The host can start a new game…</p>
+    <button id="btn-leave-game" class="link-btn">Leave room</button>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

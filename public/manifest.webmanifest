@@ -1,0 +1,15 @@
+{
+  "name": "Next Up",
+  "short_name": "Next Up",
+  "description": "The shout-it-out party guessing game. Create a room, grab your friends, and see who's up next!",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1033",
+  "theme_color": "#1a1033",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

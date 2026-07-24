@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Party game rooms — open access by design (no accounts, join by code).
+    // Codes are unguessable-enough for a casual party game; rooms hold no personal data.
+    match /rooms/{code} {
+      allow read: if true;
+      allow create: if code.size() == 4
+                    && request.resource.data.keys().hasAll(['code', 'state', 'players'])
+                    && request.resource.data.code == code;
+      allow update: if true;
+      allow delete: if true;
+    }
+    // Everything else: locked down.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
