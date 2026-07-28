@@ -248,6 +248,98 @@ select option { background: var(--bg2); color: var(--text); }
 
 .gameover-title { font-size: 34px; font-weight: 900; }
 
+/* ---------- Avatar picker ---------- */
+.avatar-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.avatar-btn {
+  width: 44px; height: 44px; font-size: 24px; line-height: 1;
+  background: rgba(0, 0, 0, .25); border: 2px solid var(--card-border);
+  border-radius: 12px; cursor: pointer; padding: 0;
+}
+.avatar-btn.selected { border-color: var(--accent); background: rgba(255, 209, 102, .18); transform: scale(1.08); }
+
+/* ---------- QR ---------- */
+.qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.qr-img {
+  width: 150px; height: 150px; border-radius: 14px;
+  background: #fff; padding: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+}
+
+/* ---------- Custom deck ---------- */
+.custom-deck-block { display: flex; flex-direction: column; gap: 6px; }
+.custom-deck-block textarea {
+  width: 100%; padding: 12px 14px; font-size: 16px; border-radius: 14px;
+  border: 2px solid var(--card-border); background: rgba(0, 0, 0, .25);
+  color: var(--text); outline: none; resize: vertical; font-family: inherit;
+}
+.custom-deck-block textarea:focus { border-color: var(--accent); }
+
+/* ---------- Phases (escalation) ---------- */
+.phase-banner {
+  background: linear-gradient(90deg, var(--blue), #7b5cff);
+  color: #fff; font-weight: 900; letter-spacing: 2px; font-size: 16px;
+  padding: 10px 18px; border-radius: 14px; text-align: center;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.phase-banner small { font-weight: 600; letter-spacing: 0; font-size: 13px; opacity: .9; }
+.phase-pill {
+  align-self: center; background: rgba(76, 201, 240, .18);
+  border: 1px solid var(--blue); color: var(--blue);
+  font-size: 12px; font-weight: 800; letter-spacing: 1.5px;
+  padding: 5px 14px; border-radius: 999px;
+}
+
+/* ---------- Teams ---------- */
+.team-hint { font-size: 16px; font-weight: 700; text-align: center; }
+.team-score-line { display: flex; gap: 12px; justify-content: center; }
+.team-chip {
+  font-size: 17px; font-weight: 700; padding: 8px 16px; border-radius: 999px;
+  background: rgba(0, 0, 0, .25); border: 1px solid var(--card-border);
+}
+.team-chip b { color: var(--accent); margin-left: 4px; }
+
+/* ---------- Golden word ---------- */
+.word-card.golden {
+  border-color: var(--accent);
+  background: linear-gradient(160deg, rgba(255, 209, 102, .22), rgba(255, 160, 30, .12));
+  box-shadow: 0 0 34px rgba(255, 209, 102, .45);
+  animation: golden-glow 1s ease-in-out infinite alternate;
+}
+@keyframes golden-glow { from { box-shadow: 0 0 18px rgba(255, 209, 102, .3); } to { box-shadow: 0 0 40px rgba(255, 209, 102, .6); } }
+.golden-tag { color: var(--accent); font-weight: 900; font-size: 14px; letter-spacing: 1px; }
+.ms-bit { color: var(--text-dim); font-weight: 400; }
+
+/* ---------- Reactions ---------- */
+.reaction-bar { display: flex; gap: 10px; justify-content: center; }
+.reaction-btn {
+  width: 58px; height: 52px; font-size: 26px; line-height: 1;
+  background: rgba(255, 255, 255, .08); border: 1px solid var(--card-border);
+  border-radius: 14px; cursor: pointer; transition: transform .08s;
+}
+.reaction-btn:active { transform: scale(1.25); }
+.floating-reaction {
+  position: fixed; bottom: 12vh; z-index: 80; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center;
+  animation: float-up 2.3s ease-out forwards;
+}
+.fr-emoji { font-size: 46px; }
+.fr-name { font-size: 12px; font-weight: 700; color: var(--text-dim); }
+@keyframes float-up {
+  0% { transform: translateY(0) scale(.6); opacity: 0; }
+  15% { transform: translateY(-6vh) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-55vh) scale(1) rotate(8deg); opacity: 0; }
+}
+
+/* ---------- Awards ---------- */
+.awards-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.awards-list li { display: flex; align-items: center; gap: 12px; background: rgba(0, 0, 0, .2); border-radius: 12px; padding: 10px 14px; }
+.award-emoji { font-size: 30px; }
+.award-body { display: flex; flex-direction: column; }
+.award-body b { font-size: 16px; }
+.award-body small { color: var(--text-dim); font-size: 13px; }
+
+/* ---------- Confetti ---------- */
+.confetti-canvas { position: fixed; inset: 0; z-index: 85; pointer-events: none; }
+
 /* ---------- Top-right menu ---------- */
 .menu-wrap { position: fixed; top: 14px; right: 14px; z-index: 45; }
 #btn-menu {

@@ -54,6 +54,9 @@
       <label class="field-label" for="name-input">Your name</label>
       <input id="name-input" type="text" maxlength="14" placeholder="e.g. Bill" autocomplete="off">
 
+      <label class="field-label">Pick your avatar</label>
+      <div id="avatar-picker" class="avatar-picker"></div>
+
       <button id="btn-create" class="btn btn-primary">🎉 Create a Room</button>
 
       <div class="divider"><span>or join a room</span></div>
@@ -78,7 +81,9 @@
         <li>The Guesser puts their phone <b>face down</b> — everyone else sees the secret word.</li>
         <li>Shout clues! (Don't say the word or spell it!)</li>
         <li>When the Guesser gets it (or gives up), the Scorekeeper taps <b>✓ Got it</b> or <b>✗ Skip</b> and the next word appears.</li>
-        <li>Rounds last 60 seconds. Most correct guesses wins!</li>
+        <li>Watch for ✨<b>golden words</b> (double points!) and 🔥<b>streaks</b> (3 in a row = bonus point!).</li>
+        <li><b>Teams mode:</b> only the Guesser's teammates shout clues — the other team stays quiet!</li>
+        <li><b>Escalation mode:</b> the same 30 words come back in 3 phases — describe freely, then one-word clues, then act it out!</li>
       </ol>
       <button id="btn-howto-close" class="btn btn-primary">Got it!</button>
     </div>
@@ -90,6 +95,11 @@
     <div class="room-code" id="lobby-code">----</div>
     <p class="hint">Friends join at <b id="lobby-url"></b></p>
 
+    <div class="qr-wrap">
+      <img id="qr-img" class="qr-img" alt="Scan to join">
+      <p class="hint">📱 Scan to join instantly</p>
+    </div>
+
     <div class="card">
       <h3 class="card-title">Players <span id="lobby-count"></span></h3>
       <ul id="lobby-players" class="player-list"></ul>
@@ -97,14 +107,33 @@
 
     <div class="card" id="lobby-settings">
       <h3 class="card-title">Game Settings</h3>
+      <label class="field-label" for="mode-select">Game mode</label>
+      <select id="mode-select">
+        <option value="classic" selected>🎯 Classic — everyone for themselves</option>
+        <option value="teams">🔴🔵 Teams — auto-split, team scores (4+ players)</option>
+        <option value="escalation">🎭 Escalation — 3 phases, same words (describe → one word → act it out)</option>
+      </select>
       <label class="field-label" for="deck-select">Category</label>
       <select id="deck-select"></select>
+      <div id="custom-deck-block" class="custom-deck-block hidden">
+        <textarea id="custom-words" rows="4" placeholder="Type your own words — one per line or separated by commas. Inside jokes encouraged! (10 minimum)"></textarea>
+        <p class="hint" id="custom-count">0 words</p>
+      </div>
       <label class="field-label" for="time-select">Round length</label>
       <select id="time-select">
         <option value="45">45 seconds</option>
         <option value="60" selected>60 seconds</option>
         <option value="90">90 seconds</option>
       </select>
+      <div id="target-block">
+        <label class="field-label" for="target-select">Play to</label>
+        <select id="target-select">
+          <option value="0" selected>No limit — play until you stop</option>
+          <option value="10">First to 10 points</option>
+          <option value="15">First to 15 points</option>
+          <option value="25">First to 25 points</option>
+        </select>
+      </div>
     </div>
     <div class="card hidden" id="lobby-settings-view">
       <p class="settings-summary" id="settings-summary"></p>
@@ -118,12 +147,13 @@
   <!-- ============ ROUND INTRO ============ -->
   <section id="screen-intro" class="screen hidden">
     <p class="round-label" id="intro-round">ROUND 1</p>
+    <div id="intro-phase" class="phase-banner hidden"></div>
     <div class="card intro-card">
       <div class="intro-role">
         <span class="intro-emoji">🎤</span>
         <div>
           <p class="intro-who" id="intro-guesser">?</p>
-          <p class="intro-what">is guessing!</p>
+          <p class="intro-what" id="intro-guesser-sub">is guessing!</p>
         </div>
       </div>
       <div class="intro-role">
@@ -134,12 +164,14 @@
         </div>
       </div>
     </div>
+    <p id="intro-team-hint" class="team-hint hidden"></p>
 
     <div id="intro-guesser-panel" class="hidden">
       <p class="big-instruction">You're up! Tap the button, then put your phone <b>FACE DOWN</b> and listen for clues!</p>
       <button id="btn-ready" class="btn btn-primary btn-huge">👇 I'm Ready — Phone Down!</button>
     </div>
     <p id="intro-wait-msg" class="hint hidden">Waiting for the guesser to put their phone down…</p>
+    <button id="btn-skip-guesser" class="link-btn hidden">😴 Guesser missing? Skip to the next player</button>
   </section>
 
   <!-- ============ PLAYING ============ -->
@@ -163,15 +195,24 @@
         <span id="play-timer" class="play-timer">60</span>
         <span id="play-tally" class="play-tally"></span>
       </div>
-      <div class="word-card">
+      <div id="play-phase" class="phase-pill hidden"></div>
+      <div class="word-card" id="word-card">
         <p class="word-deck" id="word-deck"></p>
         <p class="word" id="word-text">…</p>
+        <p id="golden-tag" class="golden-tag hidden">✨ GOLDEN WORD — DOUBLE POINTS! ✨</p>
       </div>
       <p class="hint" id="clue-hint">Shout clues — don't say the word!</p>
 
       <div id="scorer-buttons" class="scorer-buttons hidden">
         <button id="btn-wrong" class="btn-score btn-wrong">✗<span>SKIP</span></button>
         <button id="btn-correct" class="btn-score btn-correct">✓<span>GOT IT</span></button>
+      </div>
+
+      <div id="reaction-bar" class="reaction-bar hidden">
+        <button class="reaction-btn" data-emoji="😂">😂</button>
+        <button class="reaction-btn" data-emoji="🔥">🔥</button>
+        <button class="reaction-btn" data-emoji="😱">😱</button>
+        <button class="reaction-btn" data-emoji="👏">👏</button>
       </div>
     </div>
   </section>
@@ -180,6 +221,8 @@
   <section id="screen-summary" class="screen hidden">
     <p class="round-label" id="summary-round">ROUND OVER</p>
     <div class="summary-score-line" id="summary-headline"></div>
+    <p id="summary-esc-line" class="hint hidden"></p>
+    <div id="summary-team-line" class="team-score-line hidden"></div>
 
     <div class="card">
       <h3 class="card-title">This round's words</h3>
@@ -201,8 +244,14 @@
   <!-- ============ GAME OVER ============ -->
   <section id="screen-gameover" class="screen hidden">
     <h1 class="gameover-title">🏆 Final Scores</h1>
+    <div id="gameover-headline" class="summary-score-line"></div>
+    <div id="gameover-team-line" class="team-score-line hidden"></div>
     <div class="card">
       <ul id="final-scores" class="score-list final"></ul>
+    </div>
+    <div class="card" id="awards-card">
+      <h3 class="card-title">🎖 Awards</h3>
+      <ul id="awards" class="awards-list"></ul>
     </div>
     <button id="btn-play-again" class="btn btn-primary hidden">🔁 Play Again</button>
     <p id="gameover-wait-msg" class="hint hidden">The host can start a new game…</p>

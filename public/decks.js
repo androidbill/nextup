@@ -100,6 +100,38 @@ export const DECKS = {
       'Tackle Box', 'Jumper Cables', 'Yoga Mat', 'Bird Bath', 'Screen Door',
     ],
   },
+  kids: {
+    label: '🧒 Kids',
+    words: [
+      'Puppy', 'Rainbow', 'Ice Cream', 'Superhero', 'Dinosaur',
+      'Pirate', 'Unicorn', 'Bubbles', 'Birthday Cake', 'Tooth Fairy',
+      'Playground', 'Snowman', 'Mermaid', 'Robot', 'Dragon',
+      'Treehouse', 'Cartwheel', 'Sprinkles', 'Teddy Bear', 'Pillow Fight',
+      'Trampoline', 'Finger Painting', 'Hide and Seek', 'Sandbox', 'Swing Set',
+      'Lemonade Stand', 'Sleepover', 'Recess', 'Show and Tell', 'Field Trip',
+      'Crayons', 'Play-Doh', 'Legos', 'Slime', 'Sticker',
+      'Puppet', 'Magic Trick', 'Fireworks', 'Camping', 'Marshmallow',
+      'Butterfly', 'Ladybug', 'Kitten', 'Pony', 'Goldfish',
+      'Santa Claus', 'Easter Bunny', 'Halloween Costume', 'Trick or Treat', 'Snow Day',
+      'Bicycle', 'Scooter', 'Roller Skates', 'Hula Hoop', 'Jump Rope',
+    ],
+  },
+  spicy: {
+    label: '🌶️ After Dark',
+    words: [
+      'Walk of Shame', 'Skinny Dipping', 'Hangover', 'Speed Dating', 'Friend Zone',
+      'Beer Goggles', 'Bachelor Party', 'Hickey', 'Cougar', 'Sugar Daddy',
+      'Midlife Crisis', 'Truth or Dare', 'Ghosting', 'Netflix and Chill', 'One-Night Stand',
+      'Blind Date', 'Love Triangle', 'Ex-Boyfriend', 'Wingman', 'Pickup Line',
+      'Morning Breath', 'Dad Bod', 'Mullet', 'Fake ID', 'Last Call',
+      'Karaoke Fail', 'Dive Bar', 'Jello Shots', 'Body Shot', 'Keg Stand',
+      'Beer Pong', 'Happy Hour', 'Open Bar', 'Designated Driver', 'Bar Crawl',
+      'Tan Lines', 'Love Handles', 'Trophy Wife', 'Gold Digger', 'Prenup',
+      'Vegas Wedding', 'Honeymoon', 'Seven-Year Itch', 'Empty Nester', 'Retirement Fund',
+      'Online Dating', 'Catfish', 'Swipe Right', 'Situationship', 'Rebound',
+      'PDA', 'Third Wheel', 'Matchmaker', 'Secret Admirer', 'Old Flame',
+    ],
+  },
   sports: {
     label: '🏈 Sports & Games',
     words: [
