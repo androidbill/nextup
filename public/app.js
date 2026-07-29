@@ -130,6 +130,11 @@ let timerInterval = null;
 let lastTickSecond = null;
 let prevState = null;
 let prevStreak = 0;
+// When THIS device saw the round start. All round timing is measured against this
+// local anchor — never against timestamps written by another phone, because phone
+// clocks can be minutes apart and that made rounds "flash through" on skewed devices.
+let roundAnchor = null;
+const COUNTDOWN_MS = 3500;
 let wordShownAt = null;    // scorer-local: when the current word appeared
 let seenReactionTs = -1;
 let lastReactionSent = 0;
@@ -317,7 +322,7 @@ async function leaveRoom(removeSelf = true) {
       }
     } catch { /* best effort */ }
   }
-  roomCode = null; roomRef = null; room = null;
+  roomCode = null; roomRef = null; room = null; roundAnchor = null;
   localStorage.removeItem('nextup_room');
   stopTimer();
   keepAwake(false);
@@ -434,7 +439,9 @@ async function startGame() {
 
 async function guesserReady() {
   const secs = room.settings.roundSeconds || 60;
-  const startsAt = Date.now() + 3500; // 3-2-1 countdown
+  // startsAt/endsAt are informational only — clients time rounds off their own
+  // local anchor (see roundAnchor) so mismatched phone clocks can't break sync.
+  const startsAt = Date.now() + COUNTDOWN_MS;
   try {
     await updateDoc(roomRef, {
       state: 'playing',
@@ -480,7 +487,7 @@ function roundEndUpdates(extraEntry, finalBonus, finalMaxStreak) {
 let scoreTapLock = false;
 async function scoreWord(correct) {
   if (!room || room.state !== 'playing' || !isScorer()) return;
-  if (Date.now() < room.round.startsAt) return; // still counting down
+  if (!roundAnchor || Date.now() - roundAnchor < COUNTDOWN_MS) return; // still counting down
   if (scoreTapLock) return;
   scoreTapLock = true;
   setTimeout(() => { scoreTapLock = false; }, 350); // debounce double taps
@@ -614,14 +621,14 @@ function startTimerLoop() {
 }
 
 function tick() {
-  if (!room || room.state !== 'playing' || !room.round?.startsAt) { stopTimer(); return; }
-  const now = Date.now();
-  const { startsAt, endsAt } = room.round;
+  if (!room || room.state !== 'playing' || !roundAnchor) { stopTimer(); return; }
+  // elapsed is local-clock minus local-clock: immune to clock differences between phones
+  const elapsed = Date.now() - roundAnchor;
   const overlay = $('countdown-overlay');
 
-  if (now < startsAt) {
+  if (elapsed < COUNTDOWN_MS) {
     // 3-2-1 countdown
-    const n = Math.ceil((startsAt - now) / 1000);
+    const n = Math.ceil((COUNTDOWN_MS - elapsed) / 1000);
     $('countdown-num').textContent = n > 3 ? '3' : String(n);
     show(overlay);
     return;
@@ -632,12 +639,12 @@ function tick() {
     if (isScorer()) wordShownAt = Date.now();
   }
 
-  const msLeft = Math.max(0, endsAt - now);
-  const secLeft = Math.ceil(msLeft / 1000);
   const total = (room.settings.roundSeconds || 60) * 1000;
+  const msLeft = Math.max(0, COUNTDOWN_MS + total - elapsed);
+  const secLeft = Math.ceil(msLeft / 1000);
 
   const timerEl = $('play-timer');
-  timerEl.textContent = String(secLeft);
+  timerEl.textContent = String(Math.min(secLeft, Math.ceil(total / 1000)));
   timerEl.classList.toggle('low', secLeft <= 10);
   const bar = $('timebar');
   bar.style.width = `${(msLeft / total) * 100}%`;
@@ -654,9 +661,11 @@ function tick() {
     stopTimer();
     if (isGuesser()) buzz([200, 80, 200]); // face-down phone buzzes: round over, pick it up!
     else { sndBuzzer(); buzz([120, 60, 120]); }
-    // The scorekeeper's device ends the round; everyone else is a fallback after a grace period.
+    // ONLY the scorekeeper's device ends the round; everyone else is a late fallback
+    // in case the scorekeeper dropped (their anchor starts no earlier than the
+    // scorer's, so a fallback can never end a round prematurely).
     if (isScorer()) endRoundByTimer();
-    else setTimeout(() => { if (room?.state === 'playing') endRoundByTimer(); }, 2500);
+    else setTimeout(() => { if (room?.state === 'playing') endRoundByTimer(); }, 5000);
   }
 }
 
@@ -669,6 +678,9 @@ function render() {
     clearTimeout(overrideTimer);
     hide($('btn-skip-guesser'));
     prevStreak = 0;
+    // this device just saw the round begin — start ITS clock now
+    if (room.state === 'playing') roundAnchor = Date.now();
+    else roundAnchor = null;
   }
 
   switch (room.state) {
