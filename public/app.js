@@ -121,6 +121,15 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && room && (room.state === 'playing')) keepAwake(true);
 });
 
+// Whenever the app comes back to life (unlocked, foregrounded, restored, back online),
+// immediately re-establish the live room stream so we never sit on stale data.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') resubscribe();
+});
+window.addEventListener('online', () => resubscribe());
+window.addEventListener('pageshow', (e) => { if (e.persisted) resubscribe(); });
+window.addEventListener('focus', () => resubscribe());
+
 // ---------------------------------------------------------------- room state
 let roomCode = null;
 let roomRef = null;
@@ -285,13 +294,17 @@ async function joinRoom() {
   }
 }
 
-function enterRoom(code) {
-  roomCode = code;
-  roomRef = doc(db, 'rooms', code);
-  localStorage.setItem('nextup_room', code);
-  seenReactionTs = -1;
-  if (unsub) unsub();
+// Phones dim, lock, background the browser, or drop wifi mid-game — any of which can
+// silently kill the live Firestore stream and freeze that phone on a stale word.
+// These three pieces make every client notice and reconnect on its own.
+let lastSnapshotAt = 0;
+let lastResubAt = 0;
+
+function subscribeRoom() {
+  if (!roomRef) return;
+  if (unsub) { unsub(); unsub = null; }
   unsub = onSnapshot(roomRef, (snap) => {
+    lastSnapshotAt = Date.now();
     if (!snap.exists()) {
       toast('The room was closed.');
       leaveRoom(false);
@@ -301,8 +314,24 @@ function enterRoom(code) {
     render();
   }, (err) => {
     console.error(err);
-    toast('Lost connection to the room.');
+    setTimeout(() => resubscribe(), 1500); // stream errored — quietly reconnect
   });
+}
+
+function resubscribe() {
+  if (!roomRef) return;
+  if (Date.now() - lastResubAt < 4000) return; // don't thrash
+  lastResubAt = Date.now();
+  subscribeRoom();
+}
+
+function enterRoom(code) {
+  roomCode = code;
+  roomRef = doc(db, 'rooms', code);
+  localStorage.setItem('nextup_room', code);
+  seenReactionTs = -1;
+  lastSnapshotAt = Date.now();
+  subscribeRoom();
 }
 
 async function leaveRoom(removeSelf = true) {
@@ -622,6 +651,9 @@ function startTimerLoop() {
 
 function tick() {
   if (!room || room.state !== 'playing' || !roundAnchor) { stopTimer(); return; }
+  // watchdog: if no room updates have arrived in a while mid-round, the stream is
+  // probably dead (dimmed screen, dropped wifi) — reconnect before we go stale
+  if (Date.now() - lastSnapshotAt > 8000) resubscribe();
   // elapsed is local-clock minus local-clock: immune to clock differences between phones
   const elapsed = Date.now() - roundAnchor;
   const overlay = $('countdown-overlay');
