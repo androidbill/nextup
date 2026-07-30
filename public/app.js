@@ -92,6 +92,45 @@ const sndFanfare = () => {
   [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, i === 3 ? 0.5 : 0.16, 0.3), i * 160));
 };
 
+// ---------------------------------------------------------------- theme packs
+// Background + accent recolors only — green ✓ / red ✗ stay fixed so scoring
+// always reads the same in every theme.
+const THEMES = {
+  midnight: { name: '🌌 Midnight Party', vars: { '--bg1': '#1a1033', '--bg2': '#2d1457', '--bg3': '#431a6e', '--accent': '#ffd166', '--accent2': '#ffb733', '--blue': '#4cc9f0' } },
+  crimson:  { name: '❤️‍🔥 Crimson Pulse',  vars: { '--bg1': '#2a070d', '--bg2': '#531020', '--bg3': '#7c1a30', '--accent': '#ff8fa3', '--accent2': '#ef476f', '--blue': '#ff9e6b' } },
+  gold:     { name: '🤠 Gold Rush',       vars: { '--bg1': '#2b2005', '--bg2': '#4a3808', '--bg3': '#6e5410', '--accent': '#ffe066', '--accent2': '#ffb733', '--blue': '#ffd166' } },
+  ocean:    { name: '🌊 Ocean Deep',      vars: { '--bg1': '#041e30', '--bg2': '#07395c', '--bg3': '#0a5580', '--accent': '#66d9ff', '--accent2': '#38bdf8', '--blue': '#8be9fd' } },
+  emerald:  { name: '🌲 Emerald Night',   vars: { '--bg1': '#07231a', '--bg2': '#0b4433', '--bg3': '#0f6349', '--accent': '#7bf1c0', '--accent2': '#34d399', '--blue': '#6ee7b7' } },
+  sunset:   { name: '🌅 Sunset Vibes',    vars: { '--bg1': '#331005', '--bg2': '#5c2110', '--bg3': '#85331a', '--accent': '#ffb266', '--accent2': '#ff8c42', '--blue': '#ffd166' } },
+  grape:    { name: '🍇 Neon Grape',      vars: { '--bg1': '#1c0630', '--bg2': '#38105c', '--bg3': '#551a85', '--accent': '#d8b4fe', '--accent2': '#c084fc', '--blue': '#e879f9' } },
+  blackout: { name: '🖤 Blackout',        vars: { '--bg1': '#0a0a0f', '--bg2': '#16161f', '--bg3': '#22222e', '--accent': '#ffd166', '--accent2': '#ffb733', '--blue': '#9ca3af' } },
+};
+
+function applyTheme(key) {
+  const t = THEMES[key] || THEMES.midnight;
+  for (const [k, v] of Object.entries(t.vars)) document.documentElement.style.setProperty(k, v);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t.vars['--bg1']);
+  localStorage.setItem('nextup_theme', key in THEMES ? key : 'midnight');
+}
+
+function openThemes() {
+  const current = localStorage.getItem('nextup_theme') || 'midnight';
+  $('theme-grid').innerHTML = Object.entries(THEMES).map(([key, t]) =>
+    `<button class="theme-swatch${key === current ? ' selected' : ''}" data-theme="${key}">
+      <span class="sw-colors" style="background:linear-gradient(120deg, ${t.vars['--bg2']} 0%, ${t.vars['--bg3']} 55%, ${t.vars['--accent']} 130%)"></span>
+      <span class="sw-name">${t.name}</span>
+    </button>`
+  ).join('');
+  for (const b of document.querySelectorAll('.theme-swatch')) {
+    b.addEventListener('click', () => {
+      applyTheme(b.dataset.theme);
+      openThemes(); // re-render to move the selected outline
+    });
+  }
+  show($('theme-modal'));
+}
+applyTheme(localStorage.getItem('nextup_theme') || 'midnight');
+
 // ---------------------------------------------------------------- announcer
 function announcerPref() { return localStorage.getItem('nextup_announcer'); } // 'on' | 'off' | null
 function announcerOn() {
@@ -1660,6 +1699,8 @@ document.addEventListener('click', (e) => {
 $('menu-refresh').addEventListener('click', fullRefresh);
 $('menu-share').addEventListener('click', () => { hide($('menu-dropdown')); shareApp(); });
 $('menu-stats').addEventListener('click', () => { hide($('menu-dropdown')); openStats(); });
+$('menu-themes').addEventListener('click', () => { hide($('menu-dropdown')); openThemes(); });
+$('btn-theme-close').addEventListener('click', () => hide($('theme-modal')));
 $('menu-crew').addEventListener('click', () => { hide($('menu-dropdown')); openCrewBoard(); });
 $('menu-pause').addEventListener('click', () => {
   hide($('menu-dropdown'));

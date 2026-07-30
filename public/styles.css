@@ -3,7 +3,9 @@
 :root {
   --bg1: #1a1033;
   --bg2: #2d1457;
+  --bg3: #431a6e;
   --accent: #ffd166;
+  --accent2: #ffb733;
   --pink: #ef476f;
   --green: #06d6a0;
   --blue: #4cc9f0;
@@ -17,7 +19,7 @@ html, body { height: 100%; }
 
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 60%, #431a6e 100%);
+  background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 60%, var(--bg3) 100%);
   background-attachment: fixed;
   color: var(--text);
   min-height: 100dvh;
@@ -106,7 +108,7 @@ select option { background: var(--bg2); color: var(--text); }
   transition: transform .08s;
 }
 .btn:active { transform: scale(0.96); }
-.btn-primary { background: linear-gradient(90deg, var(--accent), #ffb733); box-shadow: 0 6px 20px rgba(255, 209, 102, .35); }
+.btn-primary { background: linear-gradient(90deg, var(--accent), var(--accent2)); box-shadow: 0 6px 20px rgba(255, 209, 102, .25); }
 .btn-secondary { background: var(--blue); }
 .btn-danger-outline { background: transparent; border: 2px solid var(--pink); color: var(--pink); }
 .btn-huge { padding: 24px; font-size: 22px; }
@@ -392,6 +394,16 @@ select option { background: var(--bg2); color: var(--text); }
 .about-card h2 { font-size: 28px; font-weight: 900; }
 .about-version { color: var(--text-dim); margin-top: -10px; }
 .about-credit { font-size: 15px; }
+
+/* ---------- Themes ---------- */
+.theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.theme-swatch {
+  border: 2px solid var(--card-border); border-radius: 14px; cursor: pointer;
+  padding: 0; overflow: hidden; background: none; text-align: center;
+}
+.theme-swatch.selected { border-color: var(--accent); box-shadow: 0 0 14px rgba(255, 209, 102, .4); }
+.theme-swatch .sw-colors { height: 44px; display: block; }
+.theme-swatch .sw-name { display: block; padding: 8px 6px; font-size: 13px; font-weight: 700; color: var(--text); }
 
 /* ---------- Taboo ---------- */
 .taboo-list {
