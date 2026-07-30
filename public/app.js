@@ -26,7 +26,13 @@ function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toS
 let playerId = localStorage.getItem('nextup_pid');
 if (!playerId) { playerId = uid(); localStorage.setItem('nextup_pid', playerId); }
 
-const AVATARS = ['🦊', '🐸', '🦄', '🐼', '🐙', '🦁', '🐯', '🐨', '🐷', '🦉', '🐢', '🦖', '🍕', '🌮', '🎸', '🚀', '⚡', '🌈', '🍩', '👑'];
+const AVATARS = [
+  '🐱', '🐶', '🐭', '🐬', '🦊', '🐸', '🦄', '🐼', '🐙', '🦁',
+  '🐯', '🐨', '🐷', '🦉', '🐢', '🦖', '🐻', '🐰', '🐵', '🐮',
+  '🐴', '🐔', '🦆', '🐝', '🦋', '🐳', '🦈', '🦅', '🦜', '🦩',
+  '🐺', '🦝', '🐹', '🦔', '🐊', '🤖', '👽', '🥸', '😎', '🤠',
+  '🍕', '🌮', '🍩', '🍔', '🍦', '🎸', '🚀', '⚡', '🌈', '👑',
+];
 let myAvatar = localStorage.getItem('nextup_avatar') || AVATARS[Math.floor(Math.random() * AVATARS.length)];
 
 // ---------------------------------------------------------------- dom helpers
