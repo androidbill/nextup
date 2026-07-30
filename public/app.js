@@ -342,10 +342,34 @@ async function leaveRoom(removeSelf = true) {
         await deleteDoc(roomRef); // last one out closes the room
       } else {
         const updates = { [`players.${playerId}`]: deleteField() };
+        const remaining = Object.keys(room.players).filter((id) => id !== playerId);
         // Hand off host role if the host leaves
-        if (isHost()) {
-          const others = Object.keys(room.players).filter((id) => id !== playerId);
-          if (others.length) updates.hostId = others[0];
+        if (isHost() && remaining.length) updates.hostId = remaining[0];
+        updates.upQueue = (room.upQueue || []).filter((id) => id !== playerId);
+
+        // Leaving mid-game must never strand the room:
+        if (room.state !== 'lobby' && remaining.length === 1) {
+          // only one player left — game can't continue
+          updates.state = 'gameover';
+          updates.round = null;
+        } else if (room.round && ['intro', 'playing', 'summary'].includes(room.state)) {
+          const r = room.round;
+          let guesserId = r.guesserId;
+          if (r.guesserId === playerId) {
+            if (room.state === 'playing') {
+              // the person guessing walked out mid-round — wrap the round up
+              updates.state = 'summary';
+            } else if (room.state === 'intro') {
+              const pool = remaining.filter((id) => id !== r.scorerId);
+              guesserId = pickRandom(pool.length ? pool : remaining);
+              updates['round.guesserId'] = guesserId;
+            }
+          }
+          if (r.scorerId === playerId) {
+            // hand the scoring buttons to someone else
+            const pool = remaining.filter((id) => id !== guesserId);
+            updates['round.scorerId'] = pickRandom(pool.length ? pool : remaining);
+          }
         }
         await updateDoc(roomRef, updates);
       }
@@ -1139,7 +1163,28 @@ async function shareApp() {
 
 $('btn-menu').addEventListener('click', (e) => {
   e.stopPropagation();
+  // contextual items: leave for anyone in a room, restart/end for the host mid-game
+  const inRoom = !!room;
+  (inRoom ? show : hide)($('menu-leave'));
+  ((inRoom && isHost() && room.state !== 'lobby') ? show : hide)($('menu-restart'));
+  ((inRoom && isHost() && ['intro', 'playing', 'summary'].includes(room.state)) ? show : hide)($('menu-endgame'));
   $('menu-dropdown').classList.toggle('hidden');
+});
+$('menu-leave').addEventListener('click', () => {
+  hide($('menu-dropdown'));
+  if (confirm('Leave the room?')) leaveRoom(true);
+});
+$('menu-restart').addEventListener('click', () => {
+  hide($('menu-dropdown'));
+  if (!isHost()) return;
+  if (confirm('Restart the game? Scores reset and everyone goes back to the lobby.')) playAgain();
+});
+$('menu-endgame').addEventListener('click', () => {
+  hide($('menu-dropdown'));
+  if (!isHost()) return;
+  if (confirm('End the game now and show final scores?')) {
+    updateDoc(roomRef, { state: 'gameover', round: null }).catch(console.error);
+  }
 });
 document.addEventListener('click', (e) => {
   if (!$('menu-wrap').contains(e.target)) hide($('menu-dropdown'));
