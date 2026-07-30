@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+  initializeFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
   increment, arrayUnion, deleteField, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
@@ -8,7 +8,18 @@ import { DECKS } from './decks.js';
 import { APP_VERSION } from './version.js';
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Auto-detect when the streaming transport is broken (iOS Safari + content
+// blockers / some wifi) and fall back to long-polling — cures silent hangs.
+const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+
+// Firestore promises can hang forever on a bad mobile connection — never let a
+// UI flow await one without a deadline.
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
+  ]);
+}
 
 // ---------------------------------------------------------------- identity
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
@@ -233,14 +244,19 @@ async function createRoom() {
   localStorage.setItem('nextup_name', name);
   $('btn-create').disabled = true;
   try {
-    let code, ref, snap;
-    do {
+    let code, ref;
+    for (let i = 0; i < 5; i++) {
       code = makeCode();
       ref = doc(db, 'rooms', code);
-      snap = await getDoc(ref);
-    } while (snap.exists());
+      try {
+        const snap = await withTimeout(getDoc(ref), 4000);
+        if (!snap.exists()) break; // code is free
+      } catch { break; } // lookup hung — accept the code (collision odds ~1 in 280k)
+    }
 
-    await setDoc(ref, {
+    // Fire the write and enter immediately — never wait on a server ack that a
+    // flaky phone connection might swallow. The live listener confirms it.
+    setDoc(ref, {
       code,
       createdAt: Date.now(),
       hostId: playerId,
@@ -253,11 +269,8 @@ async function createRoom() {
       history: [],
       round: null,
       roundNum: 0,
-    });
+    }).catch((e) => { console.error(e); toast('Could not create room — check your connection.'); });
     enterRoom(code);
-  } catch (e) {
-    console.error(e);
-    toast('Could not create room — check your connection.');
   } finally {
     $('btn-create').disabled = false;
   }
@@ -272,23 +285,28 @@ async function joinRoom() {
   $('btn-join').disabled = true;
   try {
     const ref = doc(db, 'rooms', code);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return toast(`Room ${code} not found.`);
-    const data = snap.data();
-    const existing = data.players?.[playerId];
-    if (!existing) {
+    let data = null;
+    try {
+      const snap = await withTimeout(getDoc(ref), 6000);
+      if (!snap.exists()) return toast(`Room ${code} not found.`);
+      data = snap.data();
+    } catch {
+      // lookup hung (flaky phone connection) — join optimistically; if the room
+      // doesn't exist the live listener will bounce us back with a message
+    }
+    if (data && !data.players?.[playerId]) {
       const nameTaken = Object.values(data.players || {}).some(
         (p) => p.name.toLowerCase() === name.toLowerCase()
       );
       if (nameTaken) return toast('That name is taken in this room — pick another.');
-      await updateDoc(ref, {
+    }
+    if (!data || !data.players?.[playerId]) {
+      // fire-and-forget: never block the UI on a server ack
+      updateDoc(ref, {
         [`players.${playerId}`]: { name, avatar: myAvatar, score: 0, joinedAt: Date.now() },
-      });
+      }).catch(() => {});
     }
     enterRoom(code);
-  } catch (e) {
-    console.error(e);
-    toast('Could not join — check the code and your connection.');
   } finally {
     $('btn-join').disabled = false;
   }
