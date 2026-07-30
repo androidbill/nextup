@@ -1577,8 +1577,9 @@ $('custom-words').addEventListener('input', () => {
   }, 600);
 });
 
-// Avatar picker
+// Avatar picker — compact button on the landing page, full grid in a popup
 function renderAvatarPicker() {
+  $('avatar-btn').textContent = myAvatar;
   $('avatar-picker').innerHTML = AVATARS.map((a) =>
     `<button class="avatar-btn${a === myAvatar ? ' selected' : ''}" data-avatar="${a}">${a}</button>`
   ).join('');
@@ -1587,10 +1588,13 @@ function renderAvatarPicker() {
       myAvatar = b.dataset.avatar;
       localStorage.setItem('nextup_avatar', myAvatar);
       renderAvatarPicker();
+      hide($('avatar-modal')); // picking one closes the popup — one tap and done
     });
   }
 }
 renderAvatarPicker();
+$('avatar-btn').addEventListener('click', () => show($('avatar-modal')));
+$('btn-avatar-close').addEventListener('click', () => hide($('avatar-modal')));
 
 // Restore name
 $('name-input').value = localStorage.getItem('nextup_name') || '';

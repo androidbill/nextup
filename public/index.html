@@ -49,6 +49,15 @@
     </div>
   </div>
 
+  <!-- ============ AVATAR PICKER ============ -->
+  <div id="avatar-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Pick your avatar</h2>
+      <div id="avatar-picker" class="avatar-picker scrollable"></div>
+      <button id="btn-avatar-close" class="btn btn-primary">Done</button>
+    </div>
+  </div>
+
   <!-- ============ STATS ============ -->
   <div id="stats-modal" class="modal hidden">
     <div class="modal-card">
@@ -79,11 +88,11 @@
     </div>
 
     <div class="card">
-      <label class="field-label" for="name-input">Your name</label>
-      <input id="name-input" type="text" maxlength="14" placeholder="e.g. Bill" autocomplete="off">
-
-      <label class="field-label">Pick your avatar</label>
-      <div id="avatar-picker" class="avatar-picker"></div>
+      <label class="field-label" for="name-input">Your name &amp; avatar</label>
+      <div class="name-row">
+        <button id="avatar-btn" class="avatar-current" aria-label="Change avatar">🦊</button>
+        <input id="name-input" type="text" maxlength="14" placeholder="e.g. Bill" autocomplete="off">
+      </div>
 
       <button id="btn-create" class="btn btn-primary">🎉 Create a Room</button>
 
