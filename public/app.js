@@ -216,14 +216,29 @@ function parseCustomWords(text) {
     .slice(0, 400);
 }
 
-// Build the words for a round, avoiding repeats across the whole game
+// Build the words for a round: fresh (never-used) words always come first, and
+// already-used words only appear after every fresh word is truly exhausted.
 function buildRoundWords(usedWords) {
   const all = deckWords();
   const used = new Set(usedWords || []);
-  let pool = all.filter((w) => !used.has(w));
-  if (pool.length < 25 && all.length >= 25) pool = all; // deck exhausted — recycle
-  if (pool.length === 0) pool = all;
-  return shuffle(pool).slice(0, 50);
+  const fresh = shuffle(all.filter((w) => !used.has(w)));
+  if (fresh.length >= 50) return fresh.slice(0, 50);
+  const recycled = shuffle(all.filter((w) => used.has(w)));
+  return [...fresh, ...recycled].slice(0, 50);
+}
+
+// Words this device has seen used, remembered across games AND rooms, so a new
+// room on the same night doesn't repeat questions. Capped to the most recent 1500.
+function rememberUsedWords(words) {
+  try {
+    const prev = JSON.parse(localStorage.getItem('nextup_usedwords') || '[]');
+    const merged = [...new Set([...prev, ...(words || [])])];
+    localStorage.setItem('nextup_usedwords', JSON.stringify(merged.slice(-1500)));
+  } catch { /* fine */ }
+}
+function recallUsedWords() {
+  try { return JSON.parse(localStorage.getItem('nextup_usedwords') || '[]'); }
+  catch { return []; }
 }
 
 function makeRound(guesserId, scorerId, words) {
@@ -264,7 +279,7 @@ async function createRoom() {
       settings: { deck: 'mix', roundSeconds: 60, mode: 'classic', targetScore: 0 },
       players: { [playerId]: { name, avatar: myAvatar, score: 0, joinedAt: Date.now() } },
       upQueue: [],
-      usedWords: [],
+      usedWords: recallUsedWords(), // no repeats even in a brand-new room
       customWords: parseCustomWords(localStorage.getItem('nextup_customwords') || ''),
       history: [],
       round: null,
@@ -477,8 +492,8 @@ async function startGame() {
   const updates = {
     state: 'intro',
     roundNum: 1,
-    usedWords: [],
     history: [],
+    // usedWords deliberately NOT reset — no repeat questions across games
   };
 
   if (mode === 'escalation') {
@@ -651,8 +666,9 @@ async function skipMissingGuesser() {
 async function playAgain() {
   if (!isHost()) return;
   const updates = {
-    state: 'lobby', round: null, roundNum: 0, upQueue: [], usedWords: [], history: [],
+    state: 'lobby', round: null, roundNum: 0, upQueue: [], history: [],
     teams: deleteField(), teamScores: deleteField(), escalation: deleteField(),
+    // usedWords deliberately kept — no repeat questions across games
   };
   for (const id of Object.keys(room.players)) updates[`players.${id}.score`] = 0;
   try { await updateDoc(roomRef, updates); }
@@ -776,6 +792,8 @@ function render() {
   if (stateChanged) {
     keepAwake(room.state === 'playing' || room.state === 'intro');
     if (room.state !== 'playing') stopTimer();
+    // every device banks the used words so whoever hosts next won't repeat them
+    if (room.state === 'summary' || room.state === 'gameover') rememberUsedWords(room.usedWords);
   }
   prevState = room.state;
 }
