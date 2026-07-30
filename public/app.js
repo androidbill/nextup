@@ -5,6 +5,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { DECKS, TABOO } from './decks.js';
+import { WORD_CODES } from './wordcodes.js';
 import { APP_VERSION } from './version.js';
 
 const app = initializeApp(firebaseConfig);
@@ -236,12 +237,9 @@ const PHASES = {
 };
 const TABOO_MAP = Object.fromEntries(TABOO.map((e) => [e.w, e.no]));
 
-const CODE_LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ'; // no I, O, Q — easy to read out loud
-function makeCode() {
-  let c = '';
-  for (let i = 0; i < 4; i++) c += CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)];
-  return c;
-}
+// Room codes are real 4-letter words (e.g. "GOLD", "WAVE") instead of random
+// letters — much easier to shout across a party and remember than "XQZP".
+function makeCode() { return pickRandom(WORD_CODES); }
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
