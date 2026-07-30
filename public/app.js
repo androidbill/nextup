@@ -4,7 +4,7 @@ import {
   increment, arrayUnion, deleteField, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
-import { DECKS } from './decks.js';
+import { DECKS, TABOO } from './decks.js';
 import { APP_VERSION } from './version.js';
 
 const app = initializeApp(firebaseConfig);
@@ -35,7 +35,7 @@ const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
 const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
-const SCREENS = ['screen-home', 'screen-lobby', 'screen-intro', 'screen-play', 'screen-summary', 'screen-gameover'];
+const SCREENS = ['screen-home', 'screen-lobby', 'screen-intro', 'screen-play', 'screen-unmask', 'screen-summary', 'screen-gameover'];
 function showScreen(id) {
   for (const s of SCREENS) (s === id ? show : hide)($(s));
   if (id === 'screen-home') updateInstallBanner();
@@ -71,7 +71,9 @@ function beep(freq, dur = 0.12, vol = 0.25, type = 'square') {
 }
 const sndTick = () => beep(880, 0.08, 0.15);
 const sndHeart = () => { beep(90, 0.09, 0.4, 'sine'); setTimeout(() => beep(75, 0.09, 0.35, 'sine'), 130); };
+const sndPulse = () => beep(65, 0.06, 0.15, 'sine');
 const sndBuzzer = () => { beep(180, 0.7, 0.35, 'sawtooth'); };
+const sndTabooBuzz = () => { beep(150, 0.15, 0.3, 'square'); setTimeout(() => beep(120, 0.25, 0.3, 'square'), 140); };
 const sndCorrect = () => { beep(660, 0.1); setTimeout(() => beep(990, 0.15), 90); };
 const sndWrong = () => beep(220, 0.2, 0.2, 'sawtooth');
 const sndStart = () => { beep(523, 0.1); setTimeout(() => beep(784, 0.2), 110); };
@@ -83,6 +85,24 @@ const sndStreak = (n) => {
 const sndFanfare = () => {
   [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, i === 3 ? 0.5 : 0.16, 0.3), i * 160));
 };
+
+// ---------------------------------------------------------------- announcer
+function announcerPref() { return localStorage.getItem('nextup_announcer'); } // 'on' | 'off' | null
+function announcerOn() {
+  const p = announcerPref();
+  if (p === 'on') return true;
+  if (p === 'off') return false;
+  return isHost() || isTV; // default: the host's phone (or the TV) does the talking
+}
+function announce(text) {
+  if (!announcerOn()) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    speechSynthesis.speak(u);
+  } catch { /* not supported — fine */ }
+}
 
 // ---------------------------------------------------------------- confetti
 function confettiBurst(count = 120, durationMs = 2800) {
@@ -148,6 +168,7 @@ let roomCode = null;
 let roomRef = null;
 let unsub = null;
 let room = null;           // latest snapshot data
+let isTV = false;          // spectator big-screen mode: watches, never writes
 let timerInterval = null;
 let lastTickSecond = null;
 let prevState = null;
@@ -156,6 +177,7 @@ let prevStreak = 0;
 // local anchor — never against timestamps written by another phone, because phone
 // clocks can be minutes apart and that made rounds "flash through" on skewed devices.
 let roundAnchor = null;
+let pauseStartLocal = null; // when THIS device saw the pause begin
 const COUNTDOWN_MS = 3500;
 let wordShownAt = null;    // scorer-local: when the current word appeared
 let seenReactionTs = -1;
@@ -167,6 +189,7 @@ const PHASES = {
   2: { name: 'ONE WORD ONLY', rule: 'You get ONE word as a clue. Choose wisely!' },
   3: { name: 'ACT IT OUT', rule: 'No words allowed — charades time!' },
 };
+const TABOO_MAP = Object.fromEntries(TABOO.map((e) => [e.w, e.no]));
 
 const CODE_LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ'; // no I, O, Q — easy to read out loud
 function makeCode() {
@@ -188,10 +211,12 @@ function myName() { return ($('name-input').value || '').trim(); }
 function isHost() { return room && room.hostId === playerId; }
 function isGuesser() { return room?.round?.guesserId === playerId; }
 function isScorer() { return room?.round?.scorerId === playerId; }
+function isImposter() { return room?.round?.imposterId === playerId; }
 function nameOf(id) {
   const p = room?.players?.[id];
   return p ? `${p.avatar || '🙂'} ${p.name}` : '???';
 }
+function plainName(id) { return room?.players?.[id]?.name || 'someone'; }
 function gameMode() { return room?.settings?.mode || 'classic'; }
 function teamOf(id) {
   if (room?.teams?.red?.includes(id)) return 'red';
@@ -199,12 +224,21 @@ function teamOf(id) {
   return null;
 }
 const TEAM_META = { red: { emoji: '🔴', label: 'Red Team' }, blue: { emoji: '🔵', label: 'Blue Team' } };
+function teamLabel(t) {
+  const custom = (room?.settings?.teamNames?.[t] || '').trim();
+  return custom || TEAM_META[t].label;
+}
+
+const THIS_MONTH = new Date().getMonth() + 1;
+function deckInSeason(d) { return !d.month || d.month === THIS_MONTH; }
 
 function deckWords() {
+  if (gameMode() === 'taboo') return TABOO.map((e) => e.w);
   if (room?.settings?.deck === 'custom') return room.customWords || [];
   return (DECKS[room?.settings?.deck] || DECKS.mix).words;
 }
 function deckLabel() {
+  if (gameMode() === 'taboo') return '🚫 Taboo';
   if (room?.settings?.deck === 'custom') return `✏️ Custom Deck`;
   return (DECKS[room?.settings?.deck] || DECKS.mix).label;
 }
@@ -243,15 +277,25 @@ function recallUsedWords() {
   catch { return []; }
 }
 
-function makeRound(guesserId, scorerId, words) {
-  const golden = (gameMode() !== 'escalation' && words.length > 3)
+function makeRound(guesserId, scorerId, words, imposterId = null) {
+  const mode = gameMode();
+  const golden = ((mode === 'classic' || mode === 'teams' || mode === 'imposter') && words.length > 3)
     ? words[Math.floor(Math.random() * Math.min(words.length, 20))]
     : null;
-  return {
+  const round = {
     guesserId, scorerId, words, index: 0, results: [],
-    startsAt: null, endsAt: null,
+    startsAt: null, endsAt: null, paused: false,
     goldenWord: golden, streak: 0, maxStreak: 0, bonus: 0,
+    imposterId: null, decoyWords: null, imposterGuessId: null,
   };
+  if (mode === 'imposter' && imposterId) {
+    round.imposterId = imposterId;
+    // the imposter sees a parallel deck of decoys — never the real word
+    const wordSet = new Set(words);
+    const others = shuffle(deckWords().filter((w) => !wordSet.has(w)));
+    round.decoyWords = words.map((w, i) => others[i % Math.max(others.length, 1)] || words[(i + 7) % words.length]);
+  }
+  return round;
 }
 
 // ---------------------------------------------------------------- create / join
@@ -278,7 +322,10 @@ async function createRoom() {
       createdAt: Date.now(),
       hostId: playerId,
       state: 'lobby',
-      settings: { deck: 'mix', roundSeconds: 60, mode: 'classic', targetScore: 0 },
+      settings: {
+        deck: 'mix', roundSeconds: 60, mode: 'classic', targetScore: 0,
+        skipPenalty: 0, teamNames: { red: '', blue: '' }, crew: localStorage.getItem('nextup_crew') || '',
+      },
       players: { [playerId]: { name, avatar: myAvatar, score: 0, joinedAt: Date.now() } },
       upQueue: [],
       usedWords: recallUsedWords(), // no repeats even in a brand-new room
@@ -329,6 +376,19 @@ async function joinRoom() {
   }
 }
 
+// 📺 TV mode: watch a room on a big screen without becoming a player
+async function enterTVMode() {
+  const code = ($('code-input').value || '').trim().toUpperCase();
+  if (code.length !== 4) return toast('Type the 4-letter room code first, then tap TV Mode.');
+  try {
+    const snap = await withTimeout(getDoc(doc(db, 'rooms', code)), 6000);
+    if (!snap.exists()) return toast(`Room ${code} not found.`);
+  } catch { /* can't verify — try anyway */ }
+  isTV = true;
+  document.body.classList.add('tv');
+  enterRoom(code);
+}
+
 // Phones dim, lock, background the browser, or drop wifi mid-game — any of which can
 // silently kill the live Firestore stream and freeze that phone on a stale word.
 // These three pieces make every client notice and reconnect on its own.
@@ -363,7 +423,7 @@ function resubscribe() {
 function enterRoom(code) {
   roomCode = code;
   roomRef = doc(db, 'rooms', code);
-  localStorage.setItem('nextup_room', code);
+  if (!isTV) localStorage.setItem('nextup_room', code);
   seenReactionTs = -1;
   lastSnapshotAt = Date.now();
   subscribeRoom();
@@ -371,7 +431,7 @@ function enterRoom(code) {
 
 async function leaveRoom(removeSelf = true) {
   if (unsub) { unsub(); unsub = null; }
-  if (removeSelf && roomRef && room) {
+  if (removeSelf && roomRef && room && !isTV) {
     try {
       if (isHost() && Object.keys(room.players || {}).length === 1) {
         await deleteDoc(roomRef); // last one out closes the room
@@ -387,13 +447,16 @@ async function leaveRoom(removeSelf = true) {
           // only one player left — game can't continue
           updates.state = 'gameover';
           updates.round = null;
-        } else if (room.round && ['intro', 'playing', 'summary'].includes(room.state)) {
+        } else if (room.round && ['intro', 'playing', 'unmask', 'summary'].includes(room.state)) {
           const r = room.round;
           let guesserId = r.guesserId;
           if (r.guesserId === playerId) {
             if (room.state === 'playing') {
               // the person guessing walked out mid-round — wrap the round up
               updates.state = 'summary';
+            } else if (room.state === 'unmask') {
+              updates.state = 'summary'; // imposter escapes by default
+              if (r.imposterId) updates[`players.${r.imposterId}.score`] = increment(2);
             } else if (room.state === 'intro') {
               const pool = remaining.filter((id) => id !== r.scorerId);
               guesserId = pickRandom(pool.length ? pool : remaining);
@@ -410,7 +473,8 @@ async function leaveRoom(removeSelf = true) {
       }
     } catch { /* best effort */ }
   }
-  roomCode = null; roomRef = null; room = null; roundAnchor = null;
+  roomCode = null; roomRef = null; room = null; roundAnchor = null; pauseStartLocal = null;
+  if (isTV) { isTV = false; document.body.classList.remove('tv'); }
   localStorage.removeItem('nextup_room');
   stopTimer();
   keepAwake(false);
@@ -460,7 +524,14 @@ function nextRoundAssignments() {
     scorerPool = ids.filter((id) => id !== guesserId);
   }
   const scorerId = pickRandom(scorerPool);
-  return { guesserId, scorerId, queue, teams };
+
+  // imposter mode: pick a saboteur among the clue-givers (needs 2+ so they can hide)
+  let imposterId = null;
+  if (gameMode() === 'imposter') {
+    const pool = ids.filter((id) => id !== guesserId && id !== scorerId);
+    if (pool.length >= 2) imposterId = pickRandom(pool);
+  }
+  return { guesserId, scorerId, queue, teams, imposterId };
 }
 
 function targetReached() {
@@ -468,7 +539,7 @@ function targetReached() {
   if (!target || gameMode() === 'escalation') return null;
   if (gameMode() === 'teams') {
     for (const t of ['red', 'blue']) {
-      if ((room.teamScores?.[t] || 0) >= target) return TEAM_META[t].emoji + ' ' + TEAM_META[t].label;
+      if ((room.teamScores?.[t] || 0) >= target) return TEAM_META[t].emoji + ' ' + teamLabel(t);
     }
     return null;
   }
@@ -487,7 +558,8 @@ async function startGame() {
   const mode = gameMode();
   if (ids.length < 2) return toast('You need at least 2 players!');
   if (mode === 'teams' && ids.length < 4) return toast('Teams mode needs at least 4 players!');
-  if (room.settings.deck === 'custom' && (room.customWords || []).length < 10) {
+  if (mode === 'imposter' && ids.length < 4) return toast('Imposter mode needs at least 4 players!');
+  if (mode !== 'taboo' && room.settings.deck === 'custom' && (room.customWords || []).length < 10) {
     return toast('Add at least 10 custom words first!');
   }
 
@@ -514,12 +586,12 @@ async function startGame() {
     updates.teams = t;
   }
   room.upQueue = [];
-  const { guesserId, scorerId, queue } = nextRoundAssignments();
+  const { guesserId, scorerId, queue, imposterId } = nextRoundAssignments();
   updates.upQueue = queue;
   const words = mode === 'escalation'
     ? shuffle(updates.escalation.remaining)
-    : buildRoundWords([]);
-  updates.round = makeRound(guesserId, scorerId, words);
+    : buildRoundWords(room.usedWords);
+  updates.round = makeRound(guesserId, scorerId, words, imposterId);
 
   try { await updateDoc(roomRef, updates); }
   catch (e) { console.error(e); toast('Could not start the game.'); }
@@ -557,7 +629,9 @@ function roundEndUpdates(extraEntry, finalBonus, finalMaxStreak) {
     fastest: fastest ? { word: fastest.word, ms: fastest.ms } : null,
     golden: results.some((x) => x.golden && x.correct),
   };
-  const updates = { state: 'summary', history: arrayUnion(entry) };
+  // imposter rounds go to the unmask screen before the summary
+  const nextState = (gameMode() === 'imposter' && r.imposterId) ? 'unmask' : 'summary';
+  const updates = { state: nextState, history: arrayUnion(entry) };
 
   if (gameMode() === 'escalation' && room.escalation) {
     const guessed = new Set(results.filter((x) => x.correct).map((x) => x.word));
@@ -573,8 +647,9 @@ function roundEndUpdates(extraEntry, finalBonus, finalMaxStreak) {
 }
 
 let scoreTapLock = false;
-async function scoreWord(correct) {
+async function scoreWord(correct, buzzed = false) {
   if (!room || room.state !== 'playing' || !isScorer()) return;
+  if (room.round.paused) return;
   if (!roundAnchor || Date.now() - roundAnchor < COUNTDOWN_MS) return; // still counting down
   if (scoreTapLock) return;
   scoreTapLock = true;
@@ -587,13 +662,16 @@ async function scoreWord(correct) {
   const newStreak = correct ? (r.streak || 0) + 1 : 0;
   const milestone = correct && newStreak >= 3 && newStreak % 3 === 0; // +1 at 3, 6, 9…
   const pts = correct ? (golden ? 2 : 1) + (milestone ? 1 : 0) : 0;
+  const penalty = !correct && (room.settings?.skipPenalty || 0) ? 1 : 0;
   const ms = wordShownAt ? Date.now() - wordShownAt : null;
   wordShownAt = Date.now();
 
-  if (correct) { golden ? sndGolden() : sndCorrect(); } else { sndWrong(); }
+  if (correct) { golden ? sndGolden() : sndCorrect(); }
+  else if (buzzed) { sndTabooBuzz(); }
+  else { sndWrong(); }
   buzz(correct ? (golden ? [40, 40, 80] : 30) : 15);
 
-  const entry = { word, correct, golden, ms };
+  const entry = { word, correct, golden, ms, buzzed };
   const newMaxStreak = Math.max(r.maxStreak || 0, newStreak);
   const updates = {
     'round.index': increment(1),
@@ -603,11 +681,12 @@ async function scoreWord(correct) {
   };
   if (milestone) updates['round.bonus'] = increment(1);
   if (gameMode() !== 'escalation') updates.usedWords = arrayUnion(word);
-  if (pts) {
-    updates[`players.${r.guesserId}.score`] = increment(pts);
+  if (pts || penalty) {
+    const delta = pts - penalty;
+    updates[`players.${r.guesserId}.score`] = increment(delta);
     if (gameMode() === 'teams') {
       const t = teamOf(r.guesserId);
-      if (t) updates[`teamScores.${t}`] = increment(pts);
+      if (t) updates[`teamScores.${t}`] = increment(delta);
     }
   }
   // Ran out of words? End the round early.
@@ -618,9 +697,34 @@ async function scoreWord(correct) {
 }
 
 async function endRoundByTimer() {
+  if (isTV) return; // the TV watches; players' phones control the game
   if (!room || room.state !== 'playing') return;
   try { await updateDoc(roomRef, roundEndUpdates(null)); }
   catch { /* someone else got it */ }
+}
+
+// ---------------------------------------------------------------- imposter unmask
+async function pickImposter(suspectId) {
+  if (!isGuesser() || room.state !== 'unmask') return;
+  const right = suspectId === room.round.imposterId;
+  const updates = { state: 'summary', 'round.imposterGuessId': suspectId };
+  updates[`players.${right ? playerId : room.round.imposterId}.score`] = increment(2);
+  try { await updateDoc(roomRef, updates); } catch (e) { console.error(e); }
+}
+
+async function skipUnmask() {
+  if (!isScorer() && !isHost()) return;
+  if (room.state !== 'unmask') return;
+  const updates = { state: 'summary' };
+  if (room.round?.imposterId) updates[`players.${room.round.imposterId}.score`] = increment(2);
+  try { await updateDoc(roomRef, updates); } catch (e) { console.error(e); }
+}
+
+// ---------------------------------------------------------------- pause
+async function setPaused(paused) {
+  if (!isScorer() && !isHost()) return;
+  if (!room || room.state !== 'playing') return;
+  try { await updateDoc(roomRef, { 'round.paused': paused }); } catch { /* fine */ }
 }
 
 async function nextRound() {
@@ -628,7 +732,7 @@ async function nextRound() {
   if (targetReached() || escalationDone()) {
     return updateDoc(roomRef, { state: 'gameover', round: null }).catch(console.error);
   }
-  const { guesserId, scorerId, queue, teams } = nextRoundAssignments();
+  const { guesserId, scorerId, queue, teams, imposterId } = nextRoundAssignments();
   const words = gameMode() === 'escalation'
     ? shuffle(room.escalation?.remaining || [])
     : buildRoundWords(room.usedWords);
@@ -636,7 +740,7 @@ async function nextRound() {
     state: 'intro',
     roundNum: (room.roundNum || 1) + 1,
     upQueue: queue,
-    round: makeRound(guesserId, scorerId, words),
+    round: makeRound(guesserId, scorerId, words, imposterId),
   };
   if (teams) updates.teams = teams;
   try { await updateDoc(roomRef, updates); }
@@ -656,7 +760,7 @@ async function skipMissingGuesser() {
   const badGuesser = room.round.guesserId;
   const pool = ids.filter((id) => id !== badGuesser && id !== room.round.scorerId);
   if (!pool.length) return toast('No one else to pass to!');
-  const newGuesser = pool[0 + Math.floor(Math.random() * pool.length)];
+  const newGuesser = pickRandom(pool);
   const updates = {
     'round.guesserId': newGuesser,
     upQueue: (room.upQueue || []).filter((id) => id !== newGuesser),
@@ -711,6 +815,21 @@ function startTimerLoop() {
 
 function tick() {
   if (!room || room.state !== 'playing' || !roundAnchor) { stopTimer(); return; }
+
+  // paused: freeze the clock; extend our local anchor by however long we sat
+  const pauseOverlay = $('pause-overlay');
+  if (room.round?.paused) {
+    if (!pauseStartLocal) pauseStartLocal = Date.now();
+    ((isScorer() || isHost()) ? show : hide)($('btn-resume'));
+    show(pauseOverlay);
+    return;
+  }
+  if (pauseStartLocal) {
+    roundAnchor += Date.now() - pauseStartLocal;
+    pauseStartLocal = null;
+  }
+  hide(pauseOverlay);
+
   // watchdog: if no room updates have arrived in a while mid-round, the stream is
   // probably dead (dimmed screen, dropped wifi) — reconnect before we go stale
   if (Date.now() - lastSnapshotAt > 8000) resubscribe();
@@ -742,11 +861,12 @@ function tick() {
   bar.style.width = `${(msLeft / total) * 100}%`;
   bar.classList.toggle('low', secLeft <= 10);
 
-  // rising tension: heartbeat under 10s, sharp ticks in the last 5 (not on the face-down phone)
+  // rising tension: soft pulse under 20s, heartbeat under 10s, sharp ticks last 5
   if (!isGuesser() && secLeft > 0 && secLeft !== lastTickSecond) {
     lastTickSecond = secLeft;
     if (secLeft <= 5) sndTick();
     else if (secLeft <= 10) sndHeart();
+    else if (secLeft <= 20) sndPulse();
   }
 
   if (msLeft <= 0) {
@@ -769,7 +889,9 @@ function render() {
   if (stateChanged) {
     clearTimeout(overrideTimer);
     hide($('btn-skip-guesser'));
+    hide($('btn-skip-unmask'));
     prevStreak = 0;
+    pauseStartLocal = null;
     // this device just saw the round begin — start ITS clock now
     if (room.state === 'playing') roundAnchor = Date.now();
     else roundAnchor = null;
@@ -779,6 +901,7 @@ function render() {
     case 'lobby': renderLobby(); break;
     case 'intro': renderIntro(stateChanged); break;
     case 'playing': renderPlaying(stateChanged); break;
+    case 'unmask': renderUnmask(stateChanged); break;
     case 'summary': renderSummary(stateChanged); break;
     case 'gameover': renderGameOver(stateChanged); break;
     default: renderLobby();
@@ -821,15 +944,24 @@ function renderLobby() {
   }).join('');
 
   const s = room.settings || {};
-  if (isHost()) {
+  if (s.crew) localStorage.setItem('nextup_crew', s.crew);
+
+  if (isHost() && !isTV) {
     show($('lobby-settings')); hide($('lobby-settings-view'));
     show($('btn-start')); hide($('lobby-wait-msg'));
     $('mode-select').value = s.mode || 'classic';
     $('deck-select').value = s.deck || 'mix';
     $('time-select').value = String(s.roundSeconds || 60);
     $('target-select').value = String(s.targetScore || 0);
+    $('penalty-select').value = String(s.skipPenalty || 0);
+    if (document.activeElement !== $('crew-input')) $('crew-input').value = s.crew || '';
+    if (document.activeElement !== $('teamname-red')) $('teamname-red').value = s.teamNames?.red || '';
+    if (document.activeElement !== $('teamname-blue')) $('teamname-blue').value = s.teamNames?.blue || '';
+
     (s.mode === 'escalation' ? hide : show)($('target-block'));
-    const customOn = s.deck === 'custom';
+    (s.mode === 'teams' ? show : hide)($('teamnames-block'));
+    (s.mode === 'taboo' ? hide : show)($('deck-block'));
+    const customOn = s.deck === 'custom' && s.mode !== 'taboo';
     (customOn ? show : hide)($('custom-deck-block'));
     if (customOn) {
       const ta = $('custom-words');
@@ -838,19 +970,24 @@ function renderLobby() {
       }
       $('custom-count').textContent = `${(room.customWords || []).length} words (10 minimum)`;
     }
-    const minPlayers = s.mode === 'teams' ? 4 : 2;
+    const minPlayers = (s.mode === 'teams' || s.mode === 'imposter') ? 4 : 2;
     $('btn-start').disabled = ids.length < minPlayers;
     $('btn-start').textContent = ids.length < minPlayers
       ? `🚀 Start Game (need ${minPlayers}+ players)` : '🚀 Start Game';
   } else {
     hide($('lobby-settings')); show($('lobby-settings-view'));
-    hide($('btn-start')); show($('lobby-wait-msg'));
-    const modeLabel = { classic: '🎯 Classic', teams: '🔴🔵 Teams', escalation: '🎭 Escalation' }[s.mode || 'classic'];
-    const deckPart = s.deck === 'custom'
-      ? `✏️ Custom Deck (${(room.customWords || []).length} words)` : deckLabel();
+    hide($('btn-start'));
+    (isTV ? hide : show)($('lobby-wait-msg'));
+    const modeLabel = {
+      classic: '🎯 Classic', teams: '🔴🔵 Teams', escalation: '🎭 Escalation',
+      imposter: '🕵️ Imposter', taboo: '🚫 Taboo',
+    }[s.mode || 'classic'];
+    const deckPart = s.mode === 'taboo' ? 'built-in Taboo deck'
+      : s.deck === 'custom' ? `✏️ Custom Deck (${(room.customWords || []).length} words)` : deckLabel();
     const targetPart = (s.targetScore && s.mode !== 'escalation') ? ` · first to ${s.targetScore}` : '';
     $('settings-summary').textContent = `${modeLabel} · ${deckPart} · ${s.roundSeconds || 60}s rounds${targetPart}`;
   }
+  (isTV ? hide : show)($('btn-leave-lobby'));
 }
 
 function renderIntro(stateChanged) {
@@ -868,14 +1005,23 @@ function renderIntro(stateChanged) {
   if (gameMode() === 'teams') {
     const t = teamOf(room.round.guesserId);
     const other = t === 'red' ? 'blue' : 'red';
-    $('intro-guesser-sub').textContent = `is guessing for ${TEAM_META[t]?.label || '?'}!`;
+    $('intro-guesser-sub').textContent = `is guessing for ${teamLabel(t)}!`;
     show($('intro-team-hint'));
     $('intro-team-hint').textContent =
-      `${TEAM_META[t]?.emoji} teammates shout clues — ${TEAM_META[other]?.emoji} stays quiet! 🤫`;
+      `${TEAM_META[t]?.emoji} ${teamLabel(t)} shouts clues — ${TEAM_META[other]?.emoji} ${teamLabel(other)} stays quiet! 🤫`;
   } else {
     $('intro-guesser-sub').textContent = 'is guessing!';
     hide($('intro-team-hint'));
   }
+
+  const modeHint = $('intro-mode-hint');
+  if (gameMode() === 'imposter' && room.round.imposterId) {
+    show(modeHint);
+    modeHint.textContent = '🕵️ One clue-giver secretly sees a DECOY word this round…';
+  } else if (gameMode() === 'taboo') {
+    show(modeHint);
+    modeHint.textContent = '🚫 Each word has 3 forbidden clues — the scorekeeper buzzes violations!';
+  } else hide(modeHint);
 
   if (isGuesser()) {
     show($('intro-guesser-panel')); hide($('intro-wait-msg'));
@@ -885,11 +1031,12 @@ function renderIntro(stateChanged) {
       `Waiting for ${nameOf(room.round.guesserId)} to put their phone down…`;
   }
 
-  // If the guesser vanished (phone died, walked off), let the scorer/host skip them
   if (stateChanged) {
+    announce(`Round ${room.roundNum || 1}! ${plainName(room.round.guesserId)}, you're up! ${plainName(room.round.scorerId)} keeps score.`);
+    // If the guesser vanished (phone died, walked off), let the scorer/host skip them
     clearTimeout(overrideTimer);
     overrideTimer = setTimeout(() => {
-      if (room?.state === 'intro' && !isGuesser() && (isScorer() || isHost())) {
+      if (room?.state === 'intro' && !isGuesser() && (isScorer() || isHost()) && !isTV) {
         show($('btn-skip-guesser'));
       }
     }, 15000);
@@ -905,11 +1052,29 @@ function renderPlaying(stateChanged) {
   } else {
     hide($('play-guesser')); show($('play-clue'));
     $('word-deck').textContent = deckLabel().replace(/^\S+\s/, ''); // drop emoji
-    const word = r.words[r.index] || '🎉 Deck cleared!';
-    $('word-text').textContent = word;
-    const golden = word === r.goldenWord;
+
+    const realWord = r.words[r.index];
+    let displayWord = realWord || '🎉 Deck cleared!';
+    if (isTV) {
+      // the guesser can SEE the TV — never show the word there
+      displayWord = `🎤 ${plainName(r.guesserId)} is guessing!`;
+    } else if (isImposter() && r.decoyWords) {
+      displayWord = r.decoyWords[r.index] || displayWord;
+    }
+    $('word-text').textContent = displayWord;
+
+    const golden = !isTV && !isImposter() && realWord === r.goldenWord;
     $('word-card').classList.toggle('golden', golden);
     (golden ? show : hide)($('golden-tag'));
+
+    (isImposter() ? show : hide)($('imposter-banner'));
+
+    // taboo: forbidden clue words under the word (real word's list — imposter sees decoy's)
+    const tabooEl = $('taboo-list');
+    if (gameMode() === 'taboo' && !isTV && realWord && TABOO_MAP[realWord]) {
+      show(tabooEl);
+      tabooEl.innerHTML = `DON'T SAY: ${TABOO_MAP[realWord].map(esc).join(' · ')}`;
+    } else hide(tabooEl);
 
     const got = (r.results || []).filter((x) => x.correct).length;
     const streakBit = (r.streak || 0) >= 2 ? `  🔥${r.streak}` : '';
@@ -930,12 +1095,20 @@ function renderPlaying(stateChanged) {
       $('play-phase').textContent = `PHASE ${room.escalation.phase}: ${ph.name}`;
     } else hide($('play-phase'));
 
-    if (isScorer()) {
+    ((isScorer() || isHost()) && !isTV ? show : hide)($('btn-pause'));
+
+    if (isScorer() && !isTV) {
       show($('scorer-buttons')); hide($('reaction-bar'));
-      $('clue-hint').textContent = 'Tap when they get it or give up!';
+      (gameMode() === 'taboo' ? show : hide)($('btn-buzz'));
+      $('clue-hint').textContent = gameMode() === 'taboo'
+        ? 'Tap ✓ when they get it, 🔔 for forbidden words, ✗ to skip!'
+        : 'Tap when they get it or give up!';
     } else {
-      hide($('scorer-buttons')); show($('reaction-bar'));
-      if (gameMode() === 'teams') {
+      hide($('scorer-buttons'));
+      (isTV ? hide : show)($('reaction-bar'));
+      if (isTV) {
+        $('clue-hint').textContent = 'Shout clues — don\'t say the word!';
+      } else if (gameMode() === 'teams') {
         const myT = teamOf(playerId);
         const gT = teamOf(r.guesserId);
         $('clue-hint').textContent = myT === gT
@@ -951,6 +1124,37 @@ function renderPlaying(stateChanged) {
   if (stateChanged || !timerInterval) startTimerLoop();
 }
 
+function renderUnmask(stateChanged) {
+  showScreen('screen-unmask');
+  const r = room.round || {};
+  $('unmask-sub').textContent =
+    `${nameOf(r.guesserId)} — one of your clue-givers was seeing a decoy word! Catch them for +2 (guess wrong and THEY get +2).`;
+
+  if (isGuesser()) {
+    show($('unmask-choices')); hide($('unmask-wait-msg'));
+    const candidates = Object.keys(room.players)
+      .filter((id) => id !== r.guesserId && id !== r.scorerId);
+    $('unmask-choices').innerHTML = candidates.map((id) =>
+      `<button class="btn btn-secondary unmask-btn" data-id="${id}">${esc(nameOf(id))}</button>`
+    ).join('');
+    for (const b of document.querySelectorAll('.unmask-btn')) {
+      b.addEventListener('click', () => pickImposter(b.dataset.id));
+    }
+  } else {
+    hide($('unmask-choices')); show($('unmask-wait-msg'));
+    $('unmask-wait-msg').textContent = `${nameOf(r.guesserId)} is deciding…`;
+  }
+
+  if (stateChanged) {
+    clearTimeout(overrideTimer);
+    overrideTimer = setTimeout(() => {
+      if (room?.state === 'unmask' && !isGuesser() && (isScorer() || isHost()) && !isTV) {
+        show($('btn-skip-unmask'));
+      }
+    }, 20000);
+  }
+}
+
 function renderSummary(stateChanged) {
   showScreen('screen-summary');
   const r = room.round || { results: [] };
@@ -961,6 +1165,16 @@ function renderSummary(stateChanged) {
   $('summary-headline').innerHTML =
     `🎤 ${esc(nameOf(r.guesserId))} got <span style="color:var(--green)">${got}</span> right!` +
     (bonus ? ` <span style="color:var(--accent)">+${bonus} 🔥 bonus</span>` : '');
+
+  // imposter reveal
+  const impLine = $('summary-imposter-line');
+  if (r.imposterId) {
+    show(impLine);
+    const caught = r.imposterGuessId === r.imposterId;
+    impLine.textContent = caught
+      ? `🕵️ ${nameOf(r.imposterId)} was the imposter — CAUGHT! +2 for ${nameOf(r.guesserId)}`
+      : `🕵️ ${nameOf(r.imposterId)} was the imposter — ESCAPED! +2 for them`;
+  } else hide(impLine);
 
   // escalation progress line
   if (gameMode() === 'escalation' && room.escalation) {
@@ -975,7 +1189,7 @@ function renderSummary(stateChanged) {
 
   $('summary-words').innerHTML = results.length
     ? results.map((x) => {
-        const mark = x.correct ? '✓' : '✗';
+        const mark = x.correct ? '✓' : (x.buzzed ? '🔔' : '✗');
         const goldBit = x.golden ? ' ✨' : '';
         const msBit = (x.correct && x.ms != null && x.ms > 400) ? ` <small class="ms-bit">${(x.ms / 1000).toFixed(1)}s</small>` : '';
         return `<li><span>${esc(x.word)}${goldBit}${msBit}</span><span class="${x.correct ? 'res-ok' : 'res-no'}">${mark}</span></li>`;
@@ -991,13 +1205,13 @@ function renderSummary(stateChanged) {
     if (who) toast(`🏆 ${who} hit ${room.settings.targetScore}!`);
   }
 
-  if (isScorer()) {
+  if (isScorer() && !isTV) {
     show($('summary-scorer-panel')); hide($('summary-wait-msg'));
   } else {
     hide($('summary-scorer-panel')); show($('summary-wait-msg'));
     $('summary-wait-msg').textContent = `${nameOf(r.scorerId)} chooses what happens next…`;
     // scorer vanished? host can take over after a wait
-    if (stateChanged) {
+    if (stateChanged && !isTV) {
       clearTimeout(overrideTimer);
       overrideTimer = setTimeout(() => {
         if (room?.state === 'summary' && isHost() && !isScorer()) {
@@ -1017,7 +1231,7 @@ function renderGameOver(stateChanged) {
   if (gameMode() === 'teams') {
     const rs = room.teamScores?.red || 0, bs = room.teamScores?.blue || 0;
     headline = rs === bs ? "🤝 It's a tie!"
-      : rs > bs ? '🔴 Red Team wins!' : '🔵 Blue Team wins!';
+      : rs > bs ? `🔴 ${teamLabel('red')} wins!` : `🔵 ${teamLabel('blue')} wins!`;
   } else {
     const top = Object.entries(room.players || {}).sort((a, b) => (b[1].score || 0) - (a[1].score || 0))[0];
     if (top && (top[1].score || 0) > 0) headline = `${nameOf(top[0])} wins!`;
@@ -1028,13 +1242,17 @@ function renderGameOver(stateChanged) {
   renderScoreList($('final-scores'));
   renderAwards();
 
-  if (isHost()) { show($('btn-play-again')); hide($('gameover-wait-msg')); }
-  else { hide($('btn-play-again')); show($('gameover-wait-msg')); }
+  if (isHost() && !isTV) { show($('btn-play-again')); hide($('gameover-wait-msg')); }
+  else { hide($('btn-play-again')); (isTV ? hide : show)($('gameover-wait-msg')); }
+  (isTV ? hide : show)($('btn-leave-game'));
 
   if (stateChanged) {
     confettiBurst(160, 3200);
     sndFanfare();
     buzz([80, 40, 80, 40, 160]);
+    if (headline) announce(`Game over! ${headline.replace(/[^\w\s!']/g, '').trim()}`);
+    updateStatsAfterGame();
+    writeCrewResults();
   }
 }
 
@@ -1042,8 +1260,8 @@ function renderTeamLine(el) {
   if (gameMode() !== 'teams' || !room.teamScores) { hide(el); return; }
   show(el);
   el.innerHTML =
-    `<span class="team-chip red">🔴 Red <b>${room.teamScores.red || 0}</b></span>` +
-    `<span class="team-chip blue">🔵 Blue <b>${room.teamScores.blue || 0}</b></span>`;
+    `<span class="team-chip red">🔴 ${esc(teamLabel('red'))} <b>${room.teamScores.red || 0}</b></span>` +
+    `<span class="team-chip blue">🔵 ${esc(teamLabel('blue'))} <b>${room.teamScores.blue || 0}</b></span>`;
 }
 
 function renderScoreList(el) {
@@ -1057,11 +1275,14 @@ function renderScoreList(el) {
   }).join('');
 }
 
-function renderAwards() {
-  // dedupe history by round number (fallback writers can double-log)
+function dedupedHistory() {
   const byRound = {};
   for (const e of room.history || []) byRound[e.round] = e;
-  const H = Object.values(byRound);
+  return Object.values(byRound);
+}
+
+function renderAwards() {
+  const H = dedupedHistory();
   const awards = [];
 
   const fastest = H.filter((e) => e.fastest).sort((a, b) => a.fastest.ms - b.fastest.ms)[0];
@@ -1092,9 +1313,201 @@ function renderAwards() {
   ).join('');
 }
 
+// ---------------------------------------------------------------- lifetime stats & badges
+function loadStats() {
+  try { return JSON.parse(localStorage.getItem('nextup_stats')) || {}; }
+  catch { return {}; }
+}
+
+function updateStatsAfterGame() {
+  if (isTV || !room?.players?.[playerId]) return;
+  const key = `${room.code}:${room.createdAt || 0}:${(room.history || []).length}`;
+  if (localStorage.getItem('nextup_last_game_key') === key) return; // already counted
+  localStorage.setItem('nextup_last_game_key', key);
+
+  const s = loadStats();
+  const myScore = room.players[playerId].score || 0;
+  const topScore = Math.max(...Object.values(room.players).map((p) => p.score || 0));
+  s.games = (s.games || 0) + 1;
+  if (myScore > 0 && myScore === topScore) s.wins = (s.wins || 0) + 1;
+  for (const e of dedupedHistory()) {
+    if (e.guesserId !== playerId) continue;
+    s.correct = (s.correct || 0) + (e.correct || 0);
+    s.skips = (s.skips || 0) + (e.skips || 0);
+    s.bestStreak = Math.max(s.bestStreak || 0, e.maxStreak || 0);
+    if (e.golden) s.golden = (s.golden || 0) + 1;
+    if (e.fastest && (!s.fastestMs || e.fastest.ms < s.fastestMs)) s.fastestMs = e.fastest.ms;
+  }
+  try { localStorage.setItem('nextup_stats', JSON.stringify(s)); } catch { /* fine */ }
+}
+
+const BADGES = [
+  { emoji: '🏆', name: 'First Win', test: (s) => (s.wins || 0) >= 1 },
+  { emoji: '👑', name: 'Champ x5', test: (s) => (s.wins || 0) >= 5 },
+  { emoji: '🎉', name: 'Party Animal', test: (s) => (s.games || 0) >= 10 },
+  { emoji: '🎪', name: 'Marathoner', test: (s) => (s.games || 0) >= 25 },
+  { emoji: '🎯', name: '50 Correct', test: (s) => (s.correct || 0) >= 50 },
+  { emoji: '💯', name: 'Century Club', test: (s) => (s.correct || 0) >= 100 },
+  { emoji: '🔥', name: '5-Streak', test: (s) => (s.bestStreak || 0) >= 5 },
+  { emoji: '🌋', name: '10-Streak', test: (s) => (s.bestStreak || 0) >= 10 },
+  { emoji: '✨', name: 'Golden Touch', test: (s) => (s.golden || 0) >= 1 },
+  { emoji: '💰', name: 'Gold x5', test: (s) => (s.golden || 0) >= 5 },
+  { emoji: '⚡', name: 'Under 1.5s', test: (s) => s.fastestMs != null && s.fastestMs <= 1500 },
+];
+
+function openStats() {
+  const s = loadStats();
+  $('stats-list').innerHTML = [
+    ['🎮 Games played', s.games || 0],
+    ['🏆 Wins', s.wins || 0],
+    ['✓ Total correct guesses', s.correct || 0],
+    ['🔥 Best streak', s.bestStreak || 0],
+    ['✨ Golden words', s.golden || 0],
+    ['⚡ Fastest guess', s.fastestMs ? `${(s.fastestMs / 1000).toFixed(1)}s` : '—'],
+  ].map(([k, v]) => `<li><span>${k}</span><span class="pts">${v}</span></li>`).join('');
+  $('badges-grid').innerHTML = BADGES.map((b) =>
+    `<div class="badge${b.test(s) ? '' : ' locked'}" title="${b.name}">
+      <span>${b.emoji}</span><small>${b.name}</small></div>`
+  ).join('');
+  show($('stats-modal'));
+}
+
+// ---------------------------------------------------------------- crew leaderboard
+function crewSlug(name) {
+  return (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
+}
+
+async function writeCrewResults() {
+  if (isTV || !isHost()) return;
+  const crew = (room?.settings?.crew || '').trim();
+  const slug = crewSlug(crew);
+  if (!slug) return;
+  const key = `crew:${room.code}:${room.createdAt || 0}:${(room.history || []).length}`;
+  if (localStorage.getItem('nextup_last_crew_key') === key) return;
+  localStorage.setItem('nextup_last_crew_key', key);
+  localStorage.setItem('nextup_crew', crew);
+
+  const topScore = Math.max(...Object.values(room.players).map((p) => p.score || 0));
+  const data = { name: crew, updatedAt: Date.now(), players: {} };
+  for (const p of Object.values(room.players)) {
+    const pk = crewSlug(p.name) || 'player';
+    data.players[pk] = {
+      name: p.name,
+      avatar: p.avatar || '🙂',
+      points: increment(p.score || 0),
+      games: increment(1),
+      wins: increment((p.score || 0) > 0 && p.score === topScore ? 1 : 0),
+    };
+  }
+  try { await setDoc(doc(db, 'crews', slug), data, { merge: true }); }
+  catch (e) { console.error(e); }
+}
+
+async function openCrewBoard() {
+  const crew = (room?.settings?.crew || localStorage.getItem('nextup_crew') || '').trim();
+  const slug = crewSlug(crew);
+  if (!slug) return toast('Set a crew name in the lobby first!');
+  try {
+    const snap = await withTimeout(getDoc(doc(db, 'crews', slug)), 6000);
+    if (!snap.exists()) return toast(`No games saved for "${crew}" yet — finish a game first!`);
+    const data = snap.data();
+    $('crew-title').textContent = `📈 ${data.name || crew}`;
+    const rows = Object.values(data.players || {}).sort((a, b) => (b.points || 0) - (a.points || 0));
+    $('crew-list').innerHTML = rows.map((p, i) => {
+      const medal = i === 0 ? '🥇 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : '';
+      return `<li><span>${medal}${esc(p.avatar || '🙂')} ${esc(p.name)} <small class="ms-bit">${p.games || 0} games · ${p.wins || 0} wins</small></span>
+        <span class="pts">${p.points || 0}</span></li>`;
+    }).join('');
+    show($('crew-modal'));
+  } catch { toast('Could not load the crew board — check your connection.'); }
+}
+
+// ---------------------------------------------------------------- recap card
+async function shareRecap() {
+  if (!room) return;
+  const W = 1080, H = 1350;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#1a1033'); grad.addColorStop(0.6, '#2d1457'); grad.addColorStop(1, '#431a6e');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+  // confetti dots
+  const colors = ['#ffd166', '#ef476f', '#06d6a0', '#4cc9f0'];
+  for (let i = 0; i < 60; i++) {
+    ctx.fillStyle = colors[i % 4];
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(Math.random() * W, Math.random() * H, 10, 14);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+
+  ctx.fillStyle = '#ffd166';
+  ctx.font = '900 92px "Segoe UI", sans-serif';
+  ctx.fillText('⏭ NEXT UP', W / 2, 150);
+  ctx.fillStyle = 'rgba(247,245,255,.6)';
+  ctx.font = '400 38px "Segoe UI", sans-serif';
+  ctx.fillText(new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }), W / 2, 215);
+
+  const entries = Object.entries(room.players || {}).sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
+  if (entries.length) {
+    const [, champ] = entries[0];
+    ctx.font = '160px "Segoe UI", sans-serif';
+    ctx.fillText(champ.avatar || '🏆', W / 2, 430);
+    ctx.fillStyle = '#f7f5ff';
+    ctx.font = '900 80px "Segoe UI", sans-serif';
+    ctx.fillText(`${champ.name} WINS!`, W / 2, 545);
+  }
+
+  ctx.font = '600 46px "Segoe UI", sans-serif';
+  let y = 680;
+  for (const [, p] of entries.slice(0, 5)) {
+    ctx.fillStyle = '#f7f5ff';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${p.avatar || '🙂'} ${p.name}`, 180, y);
+    ctx.fillStyle = '#ffd166';
+    ctx.textAlign = 'right';
+    ctx.fillText(String(p.score || 0), W - 180, y);
+    y += 84;
+  }
+
+  const H2 = dedupedHistory();
+  const hot = H2.slice().sort((a, b) => (b.maxStreak || 0) - (a.maxStreak || 0))[0];
+  const fast = H2.filter((e) => e.fastest).sort((a, b) => a.fastest.ms - b.fastest.ms)[0];
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(247,245,255,.75)';
+  ctx.font = '400 40px "Segoe UI", sans-serif';
+  let fy = y + 60;
+  if (hot && (hot.maxStreak || 0) >= 3) { ctx.fillText(`🔥 Best streak: ${hot.maxStreak} in a row (${plainName(hot.guesserId)})`, W / 2, fy); fy += 64; }
+  if (fast) { ctx.fillText(`⚡ Fastest: "${fast.fastest.word}" in ${(fast.fastest.ms / 1000).toFixed(1)}s`, W / 2, fy); fy += 64; }
+
+  ctx.fillStyle = 'rgba(247,245,255,.4)';
+  ctx.font = '400 34px "Segoe UI", sans-serif';
+  ctx.fillText(location.host, W / 2, H - 60);
+
+  canvas.toBlob(async (blob) => {
+    if (!blob) return;
+    const file = new File([blob], 'nextup-recap.png', { type: 'image/png' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Next Up' });
+        return;
+      }
+    } catch { /* fall through to download */ }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'nextup-recap.png';
+    a.click();
+    toast('Recap saved!');
+  }, 'image/png');
+}
+
 // ---------------------------------------------------------------- wire up UI
 $('btn-create').addEventListener('click', createRoom);
 $('btn-join').addEventListener('click', joinRoom);
+$('btn-tv').addEventListener('click', enterTVMode);
 $('code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(); });
 $('btn-howto').addEventListener('click', () => show($('howto-modal')));
 $('btn-howto-close').addEventListener('click', () => hide($('howto-modal')));
@@ -1104,16 +1517,24 @@ $('btn-leave-game').addEventListener('click', () => leaveRoom(true));
 $('btn-ready').addEventListener('click', guesserReady);
 $('btn-correct').addEventListener('click', () => scoreWord(true));
 $('btn-wrong').addEventListener('click', () => scoreWord(false));
+$('btn-buzz').addEventListener('click', () => scoreWord(false, true));
 $('btn-next-round').addEventListener('click', nextRound);
 $('btn-end-game').addEventListener('click', endGame);
 $('btn-play-again').addEventListener('click', playAgain);
 $('btn-skip-guesser').addEventListener('click', skipMissingGuesser);
+$('btn-skip-unmask').addEventListener('click', skipUnmask);
+$('btn-pause').addEventListener('click', () => setPaused(true));
+$('btn-resume').addEventListener('click', () => setPaused(false));
+$('btn-recap').addEventListener('click', shareRecap);
+$('btn-stats-close').addEventListener('click', () => hide($('stats-modal')));
+$('btn-crew-close').addEventListener('click', () => hide($('crew-modal')));
 for (const b of document.querySelectorAll('.reaction-btn')) {
   b.addEventListener('click', () => sendReaction(b.dataset.emoji));
 }
 
-// Deck dropdown (custom deck last)
+// Deck dropdown (seasonal decks only appear during their month; custom deck last)
 $('deck-select').innerHTML = Object.entries(DECKS)
+  .filter(([, d]) => deckInSeason(d))
   .map(([key, d]) => `<option value="${key}">${d.label}</option>`).join('')
   + '<option value="custom">✏️ Custom Deck — your own words!</option>';
 
@@ -1127,6 +1548,16 @@ $('deck-select').addEventListener('change', () => syncSetting('settings.deck', $
 $('time-select').addEventListener('change', () => syncSetting('settings.roundSeconds', parseInt($('time-select').value, 10)));
 $('mode-select').addEventListener('change', () => syncSetting('settings.mode', $('mode-select').value));
 $('target-select').addEventListener('change', () => syncSetting('settings.targetScore', parseInt($('target-select').value, 10)));
+$('penalty-select').addEventListener('change', () => syncSetting('settings.skipPenalty', parseInt($('penalty-select').value, 10)));
+
+let textSyncTimer = null;
+function syncTextSetting(field, value) {
+  clearTimeout(textSyncTimer);
+  textSyncTimer = setTimeout(() => syncSetting(field, value), 500);
+}
+$('crew-input').addEventListener('input', () => syncTextSetting('settings.crew', $('crew-input').value.trim()));
+$('teamname-red').addEventListener('input', () => syncTextSetting('settings.teamNames.red', $('teamname-red').value.trim()));
+$('teamname-blue').addEventListener('input', () => syncTextSetting('settings.teamNames.blue', $('teamname-blue').value.trim()));
 
 let customSyncTimer = null;
 $('custom-words').addEventListener('input', () => {
@@ -1201,12 +1632,33 @@ async function shareApp() {
 
 $('btn-menu').addEventListener('click', (e) => {
   e.stopPropagation();
-  // contextual items: leave for anyone in a room, restart/end for the host mid-game
+  // contextual items: leave for anyone in a room, restart/end/pause for the host mid-game
   const inRoom = !!room;
   (inRoom ? show : hide)($('menu-leave'));
-  ((inRoom && isHost() && room.state !== 'lobby') ? show : hide)($('menu-restart'));
-  ((inRoom && isHost() && ['intro', 'playing', 'summary'].includes(room.state)) ? show : hide)($('menu-endgame'));
+  ((inRoom && isHost() && !isTV && room.state !== 'lobby') ? show : hide)($('menu-restart'));
+  ((inRoom && isHost() && !isTV && ['intro', 'playing', 'unmask', 'summary'].includes(room.state)) ? show : hide)($('menu-endgame'));
+  const canPause = inRoom && !isTV && room.state === 'playing' && (isScorer() || isHost());
+  (canPause ? show : hide)($('menu-pause'));
+  if (canPause) $('menu-pause').textContent = room.round?.paused ? '▶ Resume Round' : '⏸ Pause Round';
+  ((inRoom && room.settings?.crew) || localStorage.getItem('nextup_crew') ? show : hide)($('menu-crew'));
+  $('menu-announcer').textContent = `📣 Announcer: ${announcerOn() ? 'On' : 'Off'}`;
   $('menu-dropdown').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!$('menu-wrap').contains(e.target)) hide($('menu-dropdown'));
+});
+$('menu-refresh').addEventListener('click', fullRefresh);
+$('menu-share').addEventListener('click', () => { hide($('menu-dropdown')); shareApp(); });
+$('menu-stats').addEventListener('click', () => { hide($('menu-dropdown')); openStats(); });
+$('menu-crew').addEventListener('click', () => { hide($('menu-dropdown')); openCrewBoard(); });
+$('menu-pause').addEventListener('click', () => {
+  hide($('menu-dropdown'));
+  setPaused(!room?.round?.paused);
+});
+$('menu-announcer').addEventListener('click', () => {
+  localStorage.setItem('nextup_announcer', announcerOn() ? 'off' : 'on');
+  $('menu-announcer').textContent = `📣 Announcer: ${announcerOn() ? 'On' : 'Off'}`;
+  toast(`Announcer ${announcerOn() ? 'on — this phone will call out rounds!' : 'off'}`);
 });
 $('menu-leave').addEventListener('click', () => {
   hide($('menu-dropdown'));
@@ -1224,11 +1676,6 @@ $('menu-endgame').addEventListener('click', () => {
     updateDoc(roomRef, { state: 'gameover', round: null }).catch(console.error);
   }
 });
-document.addEventListener('click', (e) => {
-  if (!$('menu-wrap').contains(e.target)) hide($('menu-dropdown'));
-});
-$('menu-refresh').addEventListener('click', fullRefresh);
-$('menu-share').addEventListener('click', () => { hide($('menu-dropdown')); shareApp(); });
 $('menu-about').addEventListener('click', () => {
   hide($('menu-dropdown'));
   $('about-version').textContent = `Version ${APP_VERSION}`;

@@ -11,6 +11,11 @@ service cloud.firestore {
       allow update: if true;
       allow delete: if true;
     }
+    // Crew leaderboards — all-time score totals for named friend groups.
+    // Open by design, same as rooms: no accounts, crews hold only first names + scores.
+    match /crews/{crew} {
+      allow read, write: if true;
+    }
     // Everything else: locked down.
     match /{document=**} {
       allow read, write: if false;

@@ -27,6 +27,10 @@
     <div id="menu-dropdown" class="menu-dropdown hidden">
       <button id="menu-refresh">🔄 Refresh</button>
       <button id="menu-share">📤 Share</button>
+      <button id="menu-pause" class="hidden">⏸ Pause Round</button>
+      <button id="menu-stats">🏅 My Stats</button>
+      <button id="menu-crew" class="hidden">📈 Crew Board</button>
+      <button id="menu-announcer">📣 Announcer</button>
       <button id="menu-restart" class="hidden">🔁 Restart Game</button>
       <button id="menu-endgame" class="hidden">🛑 End Game</button>
       <button id="menu-leave" class="hidden">🚪 Leave Room</button>
@@ -42,6 +46,27 @@
       <p class="about-version" id="about-version"></p>
       <p class="about-credit">Created by Bill Parsons</p>
       <button id="btn-about-close" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+
+  <!-- ============ STATS ============ -->
+  <div id="stats-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>🏅 My Stats</h2>
+      <ul id="stats-list" class="stats-list"></ul>
+      <h3 class="card-title">Badges</h3>
+      <div id="badges-grid" class="badges-grid"></div>
+      <button id="btn-stats-close" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+
+  <!-- ============ CREW BOARD ============ -->
+  <div id="crew-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="crew-title">📈 Crew Board</h2>
+      <p class="hint">All-time totals across game nights</p>
+      <ul id="crew-list" class="score-list"></ul>
+      <button id="btn-crew-close" class="btn btn-primary">Close</button>
     </div>
   </div>
 
@@ -68,6 +93,7 @@
         <input id="code-input" type="text" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
         <button id="btn-join" class="btn btn-secondary">Join</button>
       </div>
+      <button id="btn-tv" class="link-btn">📺 TV Mode — big-screen scoreboard for this room code</button>
     </div>
 
     <button id="btn-howto" class="link-btn">How to play</button>
@@ -83,10 +109,13 @@
         <li>Each round, the game randomly picks a <b>Guesser</b> and a <b>Scorekeeper</b>.</li>
         <li>The Guesser puts their phone <b>face down</b> — everyone else sees the secret word.</li>
         <li>Shout clues! (Don't say the word or spell it!)</li>
-        <li>When the Guesser gets it (or gives up), the Scorekeeper taps <b>✓ Got it</b> or <b>✗ Skip</b> and the next word appears.</li>
-        <li>Watch for ✨<b>golden words</b> (double points!) and 🔥<b>streaks</b> (3 in a row = bonus point!).</li>
-        <li><b>Teams mode:</b> only the Guesser's teammates shout clues — the other team stays quiet!</li>
-        <li><b>Escalation mode:</b> the same 30 words come back in 3 phases — describe freely, then one-word clues, then act it out!</li>
+        <li>The Scorekeeper taps <b>✓ Got it</b> or <b>✗ Skip</b> and the next word appears.</li>
+        <li>Watch for ✨<b>golden words</b> (double points!) and 🔥<b>streaks</b> (3 in a row = bonus!).</li>
+        <li><b>Teams:</b> only the Guesser's teammates shout — the other team stays quiet!</li>
+        <li><b>Escalation:</b> the same 30 words in 3 phases — describe, one word, act it out!</li>
+        <li><b>Imposter:</b> one clue-giver secretly sees a decoy word. Guesser unmasks them after the round for bonus points!</li>
+        <li><b>Taboo:</b> each word lists 3 forbidden clue words — the Scorekeeper buzzes violations!</li>
+        <li><b>📺 TV Mode:</b> open the room on a TV browser for a big shared scoreboard (never shows the word).</li>
       </ol>
       <button id="btn-howto-close" class="btn btn-primary">Got it!</button>
     </div>
@@ -114,10 +143,21 @@
       <select id="mode-select">
         <option value="classic" selected>🎯 Classic — everyone for themselves</option>
         <option value="teams">🔴🔵 Teams — auto-split, team scores (4+ players)</option>
-        <option value="escalation">🎭 Escalation — 3 phases, same words (describe → one word → act it out)</option>
+        <option value="escalation">🎭 Escalation — 3 phases, same words</option>
+        <option value="imposter">🕵️ Imposter — one clue-giver sees a decoy (4+ players)</option>
+        <option value="taboo">🚫 Taboo — forbidden clue words, buzz violations</option>
       </select>
-      <label class="field-label" for="deck-select">Category</label>
-      <select id="deck-select"></select>
+      <div id="teamnames-block" class="hidden">
+        <label class="field-label">Team names</label>
+        <div class="join-row">
+          <input id="teamname-red" type="text" maxlength="16" placeholder="🔴 Red Team">
+          <input id="teamname-blue" type="text" maxlength="16" placeholder="🔵 Blue Team">
+        </div>
+      </div>
+      <div id="deck-block">
+        <label class="field-label" for="deck-select">Category</label>
+        <select id="deck-select"></select>
+      </div>
       <div id="custom-deck-block" class="custom-deck-block hidden">
         <textarea id="custom-words" rows="4" placeholder="Type your own words — one per line or separated by commas. Inside jokes encouraged! (10 minimum)"></textarea>
         <p class="hint" id="custom-count">0 words</p>
@@ -137,6 +177,13 @@
           <option value="25">First to 25 points</option>
         </select>
       </div>
+      <label class="field-label" for="penalty-select">Skips</label>
+      <select id="penalty-select">
+        <option value="0" selected>Free — no penalty</option>
+        <option value="1">Hard mode — skip costs 1 point</option>
+      </select>
+      <label class="field-label" for="crew-input">Crew name (optional — saves scores to an all-time leaderboard)</label>
+      <input id="crew-input" type="text" maxlength="24" placeholder="e.g. Game Night Crew" autocomplete="off">
     </div>
     <div class="card hidden" id="lobby-settings-view">
       <p class="settings-summary" id="settings-summary"></p>
@@ -168,6 +215,7 @@
       </div>
     </div>
     <p id="intro-team-hint" class="team-hint hidden"></p>
+    <p id="intro-mode-hint" class="hint hidden"></p>
 
     <div id="intro-guesser-panel" class="hidden">
       <p class="big-instruction">You're up! Tap the button, then put your phone <b>FACE DOWN</b> and listen for clues!</p>
@@ -181,6 +229,15 @@
   <section id="screen-play" class="screen hidden">
     <!-- countdown overlay -->
     <div id="countdown-overlay" class="countdown-overlay hidden"><span id="countdown-num">3</span></div>
+
+    <!-- pause overlay -->
+    <div id="pause-overlay" class="countdown-overlay hidden">
+      <div class="pause-inner">
+        <span class="pause-emoji">⏸</span>
+        <p>PAUSED</p>
+        <button id="btn-resume" class="btn btn-primary hidden">▶ Resume</button>
+      </div>
+    </div>
 
     <!-- guesser's face-down view -->
     <div id="play-guesser" class="facedown hidden">
@@ -196,18 +253,22 @@
       <div class="timebar-track"><div id="timebar" class="timebar"></div></div>
       <div class="play-top">
         <span id="play-timer" class="play-timer">60</span>
+        <button id="btn-pause" class="pause-btn hidden">⏸</button>
         <span id="play-tally" class="play-tally"></span>
       </div>
       <div id="play-phase" class="phase-pill hidden"></div>
+      <div id="imposter-banner" class="imposter-banner hidden">🤫 YOU'RE THE IMPOSTER — you see a decoy word. Blend in!</div>
       <div class="word-card" id="word-card">
         <p class="word-deck" id="word-deck"></p>
         <p class="word" id="word-text">…</p>
+        <p id="taboo-list" class="taboo-list hidden"></p>
         <p id="golden-tag" class="golden-tag hidden">✨ GOLDEN WORD — DOUBLE POINTS! ✨</p>
       </div>
       <p class="hint" id="clue-hint">Shout clues — don't say the word!</p>
 
       <div id="scorer-buttons" class="scorer-buttons hidden">
         <button id="btn-wrong" class="btn-score btn-wrong">✗<span>SKIP</span></button>
+        <button id="btn-buzz" class="btn-score btn-buzz hidden">🔔<span>BUZZ</span></button>
         <button id="btn-correct" class="btn-score btn-correct">✓<span>GOT IT</span></button>
       </div>
 
@@ -220,10 +281,20 @@
     </div>
   </section>
 
+  <!-- ============ UNMASK (imposter mode) ============ -->
+  <section id="screen-unmask" class="screen hidden">
+    <p class="round-label">🕵️ WHO WAS THE IMPOSTER?</p>
+    <p class="hint" id="unmask-sub"></p>
+    <div id="unmask-choices" class="unmask-choices hidden"></div>
+    <p id="unmask-wait-msg" class="hint hidden"></p>
+    <button id="btn-skip-unmask" class="link-btn hidden">Guesser missing? Skip (imposter escapes)</button>
+  </section>
+
   <!-- ============ ROUND SUMMARY ============ -->
   <section id="screen-summary" class="screen hidden">
     <p class="round-label" id="summary-round">ROUND OVER</p>
     <div class="summary-score-line" id="summary-headline"></div>
+    <p id="summary-imposter-line" class="team-hint hidden"></p>
     <p id="summary-esc-line" class="hint hidden"></p>
     <div id="summary-team-line" class="team-score-line hidden"></div>
 
@@ -256,6 +327,7 @@
       <h3 class="card-title">🎖 Awards</h3>
       <ul id="awards" class="awards-list"></ul>
     </div>
+    <button id="btn-recap" class="btn btn-secondary">📸 Share Recap Card</button>
     <button id="btn-play-again" class="btn btn-primary hidden">🔁 Play Again</button>
     <p id="gameover-wait-msg" class="hint hidden">The host can start a new game…</p>
     <button id="btn-leave-game" class="link-btn">Leave room</button>
