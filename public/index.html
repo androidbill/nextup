@@ -261,6 +261,26 @@
     <button id="btn-leave-game" class="link-btn">Leave room</button>
   </section>
 
+  <!-- ============ INSTALL ============ -->
+  <div id="install-banner" class="install-banner hidden">
+    <span>📲 Install <b>Next Up</b> — plays best as an app!</span>
+    <button id="btn-install">Install</button>
+    <button id="btn-install-dismiss" aria-label="Dismiss">✕</button>
+  </div>
+
+  <div id="ios-install-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>📲 Install Next Up</h2>
+      <p class="hint" style="text-align:left">iPhones don't allow one-tap install, but it only takes a second:</p>
+      <ol class="howto-list">
+        <li>Tap the <b>Share</b> button (the square with the ⬆️ arrow) at the bottom of Safari</li>
+        <li>Scroll down and tap <b>Add to Home Screen</b></li>
+        <li>Tap <b>Add</b> — Next Up is now on your home screen! 🎉</li>
+      </ol>
+      <button id="btn-ios-close" class="btn btn-primary">Got it!</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script type="module" src="app.js"></script>

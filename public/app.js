@@ -38,6 +38,8 @@ const esc = (s) => { const d = document.createElement('div'); d.textContent = s;
 const SCREENS = ['screen-home', 'screen-lobby', 'screen-intro', 'screen-play', 'screen-summary', 'screen-gameover'];
 function showScreen(id) {
   for (const s of SCREENS) (s === id ? show : hide)($(s));
+  if (id === 'screen-home') updateInstallBanner();
+  else hide($('install-banner'));
 }
 
 let toastTimer = null;
@@ -1235,6 +1237,47 @@ $('menu-about').addEventListener('click', () => {
 $('btn-about-close').addEventListener('click', () => hide($('about-modal')));
 $('btn-update').addEventListener('click', fullRefresh);
 
+// ---------------------------------------------------------------- install prompt
+let deferredInstall = null; // Android/Chrome native install prompt, captured for our button
+const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+function updateInstallBanner() {
+  const dismissed = localStorage.getItem('nextup_install_dismissed') === '1';
+  const available = !isStandalone && !dismissed && (deferredInstall || isIOS);
+  const onHome = !room;
+  ((available && onHome) ? show : hide)($('install-banner'));
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); // we show our own banner instead of Chrome's mini-bar
+  deferredInstall = e;
+  updateInstallBanner();
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstall = null;
+  hide($('install-banner'));
+  toast('Installed! Look for Next Up on your home screen 🎉');
+});
+$('btn-install').addEventListener('click', async () => {
+  if (deferredInstall) {
+    // Android / desktop Chrome: real one-tap install
+    deferredInstall.prompt();
+    await deferredInstall.userChoice.catch(() => null);
+    deferredInstall = null;
+    hide($('install-banner'));
+  } else if (isIOS) {
+    // Apple doesn't allow a programmatic prompt — show the how-to instead
+    show($('ios-install-modal'));
+  }
+});
+$('btn-install-dismiss').addEventListener('click', () => {
+  localStorage.setItem('nextup_install_dismissed', '1');
+  hide($('install-banner'));
+});
+$('btn-ios-close').addEventListener('click', () => hide($('ios-install-modal')));
+updateInstallBanner();
+
 // On open: fetch version.js fresh and prompt to refresh if a newer version is deployed
 async function checkForUpdate() {
   try {
@@ -1245,6 +1288,17 @@ async function checkForUpdate() {
   } catch { /* offline — skip */ }
 }
 checkForUpdate();
+
+// Installed PWAs are resumed, not reloaded — re-check for updates when the app
+// comes back to the foreground (at most every 10 minutes) so no phone stays on
+// an old version for days. Keeping everyone on one version prevents sync quirks.
+let lastUpdateCheck = Date.now();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastUpdateCheck > 600000) {
+    lastUpdateCheck = Date.now();
+    checkForUpdate();
+  }
+});
 
 // ?join=CODE links (QR / shares) → prefill, and auto-join if we already have a name
 const joinParam = new URLSearchParams(location.search).get('join');
